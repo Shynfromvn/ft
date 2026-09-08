@@ -202,7 +202,20 @@ memory:
   preferencePatternActions: []
   recommendationStateRequired: false
   writerHook: null
-  recommendationHook: "features.ft008_eco_mode_recommendation_poc.backend.memory:transitions"
+  # `null` vì `transitions()` đã gỡ khỏi `memory.py`. Hook ấy chỉ được gọi từ
+  # route `/respond` sau khi một đề cử đổi trạng thái, và brief này không có
+  # đường phản hồi nào — `routing.triggers` rỗng, `operations` không có
+  # `RESPOND`, và `Bước 4` nói hai nút không ấn được. Không sự kiện nào làm một
+  # đề cử đổi trạng thái, nên hook sẽ không bao giờ chạy.
+  #
+  # Dòng làm `duplicateCandidate` thành `true` do route `/evaluate` ghi
+  # (`dedup_key=candidateId`), không do hook này — nên gỡ hook không làm hỏng
+  # cơ chế chống trùng của `AC-02`.
+  #
+  # Nếu contract checker đòi hook khác `null` khi `memory.enabled: true`, khôi
+  # phục một `transitions()` tối thiểu ghi đúng một loại bản ghi, và ghi rõ tại
+  # chỗ rằng nó chưa có đường gọi. Đừng khôi phục cả bảng năm `RecordKind`.
+  recommendationHook: null
   publicProjectionHook: null
   preferenceContextHook: null
   preferenceProjectionHook: null
