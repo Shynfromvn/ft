@@ -8,7 +8,7 @@ meta:
     có mặt nhưng không ấn được (BA-03), nên không có câu trả lời nào và không lệnh
     nào rời hệ thống.
 
-    Mười sáu factor của bản FT-007 đã bỏ: navigation.* (Navigation ngoài phạm vi),
+    Hai mươi factor kế thừa đã bỏ: navigation.* (Navigation ngoài phạm vi),
     safety.* (Safety/ADAS ngoài phạm vi), phone.* (cuộc gọi ngoài phạm vi),
     interaction.* (Assistant Mode ngoài phạm vi), vehicleHealth.systemState (không
     còn là cổng), motion.vehicleInDrive và motion.gearState (không cổng nào đọc sau
@@ -39,7 +39,7 @@ factors:
   keys:
   - atMs: 0
     value: xe-mac-dinh
-# Cùng bốn mốc như bản FT-007, giữ nguyên có chủ ý: `motion.socPct` nội suy tuyến
+# Cùng bốn mốc như bản kế thừa, giữ nguyên có chủ ý: `motion.socPct` nội suy tuyến
 # tính nên nó cắt ngưỡng ở giây 43, không ở mốc keyframe. Đổi hình sẽ làm mốc neo
 # trong `expect` bên dưới thôi đúng.
 - key: motion.socPct
@@ -78,7 +78,7 @@ expect:
 - id: E2
   label: QC-03.1
   describe: 'Sau khi khuyến nghị được hiển thị, không lệnh nào rời hệ thống. Đây là
-    khác biệt lớn nhất với FT-007: ở đó tài xế trả lời ở giây 50 và một lệnh đổi chế
+    khác biệt lớn nhất với bản kế thừa: ở đó tài xế trả lời ở giây 50 và một lệnh đổi chế
     độ được gửi xuống xe. POC không có đường ấy — §Phạm vi loại bỏ thực thi ECU, và
     `publicResult.allowedFields` không khai `actionsToExecute`.'
   at: 46000

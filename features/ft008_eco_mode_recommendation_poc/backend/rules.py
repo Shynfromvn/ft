@@ -8,7 +8,7 @@ Every number below traces to a decision. Where a company document fixed it, that
 is said; where nothing fixed it, that is said too — and said loudly, because a
 number with no source looks exactly like a number somebody approved.
 
-`FT-007`: this package is a **narrower** feature than
+**Scope.** This package is a **narrower** feature than
 `ft007_battery_status_recommendation`, not a variant of it. Its `ba.md` (source
 requirement UC-01 v0.1, 3 Sep 2026) puts Navigation, Safety/ADAS, calls,
 Assistant Mode, user response and ECU execution out of scope, so the constants

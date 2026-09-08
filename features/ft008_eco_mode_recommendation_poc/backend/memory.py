@@ -58,7 +58,7 @@ __all__ = [
 
 #: Declared in `feature.yaml`; the platform stores under it and recalls by it.
 #:
-#: Riêng của gói này, không dùng lại `battery_status` của FT-007. Hai tính năng
+#: Riêng của gói này, không dùng lại `battery_status` của gói `ft007_battery_status_recommendation`. Hai tính năng
 #: chung một category là hai tính năng đọc được bản ghi của nhau, và một đề cử
 #: đang chờ bên kia sẽ chặn đề cử bên này.
 CATEGORY = "eco_mode_poc"

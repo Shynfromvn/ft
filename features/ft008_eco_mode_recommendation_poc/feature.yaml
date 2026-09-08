@@ -1,7 +1,7 @@
 # ══════════════════════════════════════════════════════════════════════════
 #  FT-008 — Khuyến nghị chuyển Eco Mode khi pin thấp (POC rút gọn)
 #
-#  ── Quan hệ với FT-007 ──────────────────────────────────────────────────
+#  ── Quan hệ với ft007_battery_status_recommendation ──────────────────────────────────────────────────
 #  Gói này KHÔNG phải một biến thể của `ft007_battery_status_recommendation`.
 #  Nó là một tính năng riêng, chạy trên một `ba.md` riêng — bản requirement
 #  UC-01 v0.1 ngày 3 Sep 2026, hẹp hơn hẳn: không Navigation, không Safety/
@@ -183,7 +183,7 @@ carScreen:
 
 memory:
   enabled: true
-  # Namespace RIÊNG, không dùng lại `battery_status` của FT-007. Hai tính năng
+  # Namespace RIÊNG, không dùng lại `battery_status` của gói `ft007_battery_status_recommendation`. Hai tính năng
   # dùng chung một category là hai tính năng đọc được bản ghi của nhau, và
   # `duplicateCandidate` của bên này sẽ chặn Candidate của bên kia.
   category: eco_mode_poc
@@ -224,14 +224,14 @@ memory:
 
 frontend:
   # Màn hình thật, không phải vỏ generic. Nhưng nó làm ÍT hơn hẳn màn hình của
-  # FT-007: `Bước 4` chỉ đòi hiển thị câu hỏi và hai nút xác nhận **ở trạng
+  # gói kia: `Bước 4` chỉ đòi hiển thị câu hỏi và hai nút xác nhận **ở trạng
   # thái không thao tác được** (`BA-03`). Bốn ràng buộc màn hình gốc thực hiện
   # — `AC-06` Driving chỉ Voice, `AC-07` Parked có Answer Card, `AC-13`/`NFR-06`
   # gỡ UI khi chuyển sang Driving, `AC-14` cửa sổ 6 giây — đều ngoài phạm vi
   # POC và không được mang sang.
   #
   # `componentKey` là một KHOÁ, không phải đường dẫn import, và nó phải khác
-  # khoá của FT-007: hai tính năng cùng khoá thì registry sinh ra chỉ giữ được
+  # khoá của gói kia: hai tính năng cùng khoá thì registry sinh ra chỉ giữ được
   # một.
   kind: custom
   componentKey: EcoModeRecommendationPocDetail
@@ -247,7 +247,7 @@ docs:
   baDoc: features/ft008_eco_mode_recommendation_poc/docs/ba.md
   qcDoc: features/ft008_eco_mode_recommendation_poc/docs/qa-qc.md
   sequenceDoc: features/ft008_eco_mode_recommendation_poc/docs/sequence.md
-  # Ba, không phải bảy. Bốn kịch bản của FT-007 mất lý do tồn tại cùng lúc với
+  # Ba, không phải bảy. Bốn kịch bản kế thừa mất lý do tồn tại cùng lúc với
   # các cổng chúng kiểm:
   #   `chiem-quyen`    — Safety/cuộc gọi chiếm quyền, cả hai ngoài phạm vi
   #   `doi-lo-trinh`   — vế "lộ trình thay đổi" của Trigger, POC không có
