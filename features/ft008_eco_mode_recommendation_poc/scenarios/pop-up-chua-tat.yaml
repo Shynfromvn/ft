@@ -1,0 +1,97 @@
+schemaVersion: 4
+meta:
+  id: pop-up-chua-tat
+  title: Pop-up chưa tắt — chạm ngưỡng lần hai, không có khuyến nghị thứ hai
+  description: 'AC-02 · Bước 2. Pin đi qua 20% hai lần trong cùng một chuyến. Lần đầu
+    tạo Candidate và hiển thị khuyến nghị. Lần thứ hai không được tạo gì cả: Session
+    History cho thấy khuyến nghị Eco lần trước vẫn đang chờ xử lý, và ba.md nói pop-up
+    cũ chưa tắt thì không được hiện pop-up mới.
+
+    Kịch bản này là phép thử cho một câu hỏi thiết kế còn mở, chứ không chỉ cho một
+    tiêu chí. Chủ dự án chốt 2026-09-08 rằng POC không đặt tín hiệu cho phản hồi tài
+    xế, và cờ chống trùng không cần thành một factor riêng vì nó nội suy được từ chính
+    lần chạy: route ghi dòng dedup_key=candidateId lúc phát Candidate, snapshot đọc
+    lại thành duplicateCandidate. Lượt chạy này là chỗ điều đó được chứng minh hoặc
+    bị bác.
+
+    Hai chỗ có thể cấn, và cả hai đều đáng theo dõi khi chạy. Một, hình pin phải nâng
+    lên 24% giữa hai lần để threshold_cross vũ trang lại — xe đang chạy mà pin tự tăng
+    là chuyện khó biện minh, dù im-lang của gói kia đã dùng đúng hình này từ trước.
+    Hai, engine.candidateLifetimeSeconds đang để trống nên đề cử mượn DEFAULT_LIFETIME
+    của nền tảng; nếu nó ngắn hơn 86 giây thì đề cử thứ nhất tự hết hạn trước lần chạm
+    thứ hai, duplicateCandidate về false, và lần thứ hai được nói — đúng điều AC-02
+    cấm. Bài này đỏ khi đó, và đỏ đúng chỗ.
+
+    '
+  durationMs: 180000
+factors:
+- key: connectivity.online
+  interp: hold
+  keys:
+  - atMs: 0
+    value: true
+- key: connectivity.dataAgeSeconds
+  interp: hold
+  keys:
+  - atMs: 0
+    value: 1
+- key: identity.tripId
+  interp: hold
+  keys:
+  # Một chuyến duy nhất suốt lượt chạy. `conditions.battery_low` khoá phạm vi
+  # theo `[identity, tripId]`, nên đổi id giữa chừng sẽ làm lần chạm thứ hai
+  # thành một tập khác và cơ chế chống trùng không còn gì để so.
+  - atMs: 0
+    value: chuyen-di-pop-up
+- key: identity.vehicleId
+  interp: hold
+  keys:
+  - atMs: 0
+    value: xe-mac-dinh
+# Hai lần cắt ngưỡng, tính từ nội suy tuyến tính: giây 34,3 và giây 120. Cách
+# nhau 86 giây — xem ghi chú về `candidateLifetimeSeconds` ở `meta.description`.
+- key: motion.socPct
+  interp: linear
+  keys:
+  - atMs: 0
+    value: 26
+  - atMs: 40000
+    value: 19
+  - atMs: 80000
+    value: 24
+  - atMs: 130000
+    value: 19
+  - atMs: 180000
+    value: 18
+- key: motion.socDataAgeSeconds
+  interp: hold
+  keys:
+  - atMs: 0
+    value: 1
+- key: motion.driveMode
+  interp: hold
+  keys:
+  # NORMAL suốt lượt chạy. POC không thực thi lệnh nào, nên chế độ lái không
+  # đổi kể cả sau khi khuyến nghị đã hiển thị — khác hẳn `pin-tu-tut` của gói
+  # kia, nơi tài xế đồng ý và độ dốc pin đổi theo.
+  - atMs: 0
+    value: NORMAL
+expect:
+- id: E1
+  label: QC-01.1
+  describe: 'Lần chạm thứ nhất, giây 34,3 — mọi cổng đều mở và Session History trống,
+    nên đúng một Candidate được tạo.'
+  at: 33000
+  withinMs: 4000
+  reaches:
+    stage: action
+    outcome: ACTED
+    reasonCode: soft_threshold_crossed
+- id: E2
+  label: QC-02.1
+  describe: 'Lần chạm thứ hai, giây 120 — im lặng. Cửa sổ mở từ giây 118 tới hết lượt
+    chạy chứ không đóng ngay sau mốc: một khẳng định "không nói gì" đặt hẹp quanh mốc
+    sẽ xanh cả khi hệ thống nói muộn vài giây.'
+  at: 118000
+  forMs: 62000
+  silent: {}

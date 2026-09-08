@@ -1,0 +1,97 @@
+schemaVersion: 4
+meta:
+  id: im-lang
+  title: Im lặng — ba lần pin chạm 20%, ba lần im vì ba lý do khác nhau
+  description: 'Mỗi lần im đòi hai thứ, không phải một: không có đầu ra nào tới tài
+    xế, **và** một bản ghi nêu mã lý do cùng chặng — để phân biệt "cân nhắc rồi chọn
+    không nói" với "hỏng nên không nói gì". Giữa hai lần, pin phải hồi lên trên ngưỡng
+    thì mốc mới được vũ trang lại; đó là lý do các bước nâng pin lên 24% nằm xen giữa.
+
+    Ba lần, không phải sáu. Bản của gói ft007_battery_status_recommendation chạy sáu
+    tình huống cho sáu cổng của Bước 5; brief này chỉ còn ba cổng mà một kịch bản
+    lái tới được. Ba cổng còn lại không xuất hiện ở đây vì lý do khác nhau, và cả ba
+    đều đáng nói ra: above_threshold không tới được qua đường watch (pin không đi qua
+    mốc thì không có lần đánh giá nào để mà im), data_missing đòi miền motion vắng
+    mặt hoàn toàn — nhưng chính miền ấy mang tín hiệu được canh, và session_history_unavailable
+    là một sự cố hạ tầng, không phải một trạng thái xe. Ba cái đó có bài kiểm ở tests/test_service.py.
+
+    Lần thứ ba im ở một chặng khác hai lần đầu: guard is_online của conditions.battery_low
+    chặn ngay ở tầng điều kiện, nên lần đánh giá không bao giờ tới tầng luật. Đó vẫn
+    là im lặng đúng, chỉ khác chỗ ghi lý do.
+
+    '
+  durationMs: 240000
+factors:
+- key: connectivity.online
+  interp: hold
+  keys:
+  - atMs: 0
+    value: true
+  # Lần chạm thứ ba, ở giây 180: xe mất kết nối.
+  - atMs: 160000
+    value: false
+  - atMs: 220000
+    value: true
+- key: connectivity.dataAgeSeconds
+  interp: hold
+  keys:
+  - atMs: 0
+    value: 1
+- key: identity.tripId
+  interp: hold
+  keys:
+  - atMs: 0
+    value: chuyen-di-im-lang
+- key: identity.vehicleId
+  interp: hold
+  keys:
+  - atMs: 0
+    value: xe-mac-dinh
+# Ba lần cắt ngưỡng, tính từ nội suy tuyến tính: giây 34,3 · giây 102 · giây 180.
+# Hai đoạn nâng lên 24% ở giữa là để `threshold_cross` vũ trang lại — nó bắn khi
+# vừa đi qua rồi ngủ cho tới lúc thoát khỏi dải.
+- key: motion.socPct
+  interp: linear
+  keys:
+  - atMs: 0
+    value: 26
+  - atMs: 40000
+    value: 19
+  - atMs: 70000
+    value: 24
+  - atMs: 110000
+    value: 19
+  - atMs: 140000
+    value: 24
+  - atMs: 190000
+    value: 19
+  - atMs: 240000
+    value: 18
+- key: motion.socDataAgeSeconds
+  interp: hold
+  keys:
+  - atMs: 0
+    value: 1
+  # Lần chạm thứ hai, ở giây 102: số đo pin đã 15 giây tuổi, quá trần 10 giây.
+  - atMs: 90000
+    value: 15
+  - atMs: 130000
+    value: 1
+- key: motion.driveMode
+  interp: hold
+  keys:
+  # Lần chạm thứ nhất, ở giây 34,3: xe đã ở Eco. Đề xuất lại thứ tài xế đã làm
+  # là bằng chứng rõ nhất rằng trợ lý không theo dõi họ.
+  - atMs: 0
+    value: ECO
+  - atMs: 60000
+    value: NORMAL
+expect:
+- id: E1
+  label: QC-01.2
+  describe: 'Ba tình huống nối tiếp, và **không** cái nào được tạo Candidate. Đây là
+    phép thử thật của silent: cả vế ∀ (suốt cửa sổ, không nói gì) lẫn vế ∃ (có ghi
+    được vì sao).'
+  at: 0
+  forMs: 240000
+  silent: {}
