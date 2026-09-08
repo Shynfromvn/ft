@@ -1,0 +1,81 @@
+# ══════════════════════════════════════════════════════════════════════════
+#  Brief mẫu. `scripts/feature-new.sh` thay FT-000 / ft000_example bằng giá
+#  trị thật. FT-000 là ID SENTINEL — không thuộc tính năng nào, vĩnh viễn.
+#
+#  Chín khối đầu là HỢP ĐỒNG DỮ LIỆU kế thừa nguyên vẹn: thêm được trường,
+#  không bỏ được trường. Khối `docs` ở cuối là của riêng repo này.
+# ══════════════════════════════════════════════════════════════════════════
+
+schemaVersion: 2
+
+identity:
+  featureId: FT-000
+  slug: example
+  name: "TODO: tên hiển thị"
+  description: "TODO: một câu — vendor đọc câu này trên bảng điều khiển demo"
+  enabled: false
+  status: Draft
+  lastTested: ""
+
+handlers:
+  evaluateModel: "features.ft000_example.backend.schemas:EvaluateRequest"
+  respondModel: "features.ft000_example.backend.schemas:RespondRequest"
+  evaluate: "features.ft000_example.backend.handlers:evaluate"
+  respond: "features.ft000_example.backend.handlers:respond"
+  ingressMode: canonical
+
+# Tổ hợp hợp lệ TỐI THIỂU: agent tắt nên routing, memory, publicResult và
+# runtime đều phải rỗng. Bật agent lên thì contract checker đòi adapter, ít nhất
+# một operation, và ít nhất một routing trigger.
+agent:
+  enabled: false
+  adapter: null
+  operations: []
+  interactionStages: []
+
+routing:
+  triggers: []
+
+engine:
+  localPreferenceMining: false
+  recordsDeliveredFeedback: false
+  confirmationFreshness:
+    mode: none
+    deliveredFeedbackStage: null
+  # Bắt buộc với tính năng nào khai `routing.watches` — tức là nói trước được.
+  # Bỏ trống thì cổng hợp đồng chặn ứng dụng lúc khởi động, không phải lúc demo.
+  recommendationTopic: ""
+  candidateLifetimeSeconds: null
+
+publicResult:
+  mode: none
+  allowedFields: []
+
+runtime:
+  stateDomains: []
+  events: []
+  projection: null
+  frontendProjection: null
+
+memory:
+  enabled: false
+
+frontend:
+  kind: generic
+
+# Trần latency tính năng này cam kết — bỏ chú thích khi `ba.md` đã có bảng NFR.
+# Nền tảng giữ TÊN chặng (`kernel/observability/catalog.py`) và mã; con số giây
+# sống ở đây, vì hai tính năng có quyền đặt hai trần khác nhau cho cùng một
+# chặng. Khai cả cha (`e2e`) lẫn đủ ba con thì tổng ba con phải ≤ trần của cha,
+# và cổng nổ có nêu tên ba mã.
+# budgets:
+#   - nfr: NFR-02
+#     span: s5.decide
+#     budgetS: 1.0
+
+docs:
+  # Trong gói, không ở `docs/` gốc repo (P14). `feature-new.sh` đổi
+  # `ft000_example` sang package thật khi copy.
+  baDoc: features/ft000_example/docs/ba.md
+  qcDoc: features/ft000_example/docs/qa-qc.md
+  demoScenarios: []

@@ -1,0 +1,184 @@
+schemaVersion: 4
+meta:
+  id: pin-tu-tut
+  title: Pin tự tụt — xe chạy, trợ lý gợi ý, Eco làm chậm lại, rồi cắm sạc
+  description: 'Kịch bản đầu tiên trong đó **không ai gõ tay một mức pin nào** sau
+    lúc mở màn. Pin tụt vì thời gian trôi, và ba đoạn của nó có ba độ dốc khác nhau:
+    chạy thường, chạy Eco sau khi tài xế đồng ý, và đang nạp.
+
+    Đây là thứ biến `AC-09` từ một lời báo thành một thứ quan sát được. Trước ADR-0045,
+    tài xế đồng ý chuyển Eco và **không gì trong mô phỏng đổi** — bộ giả lập chở tín
+    hiệu của chiếc xe chứ không sinh ra chúng (`DEBT-034`).
+
+    '
+  durationMs: 200000
+factors:
+- key: motion.socPct
+  interp: linear
+  keys:
+  - atMs: 0
+    value: 24
+  - atMs: 105000
+    value: 19.8
+  - atMs: 160000
+    value: 19.3
+  - atMs: 200000
+    value: 21.5
+- key: motion.driveMode
+  interp: hold
+  keys:
+  - atMs: 0
+    value: NORMAL
+  - atMs: 110000
+    value: ECO
+- key: motion.gearState
+  interp: hold
+  keys:
+  - atMs: 0
+    value: D
+- key: motion.vehicleInDrive
+  interp: hold
+  keys:
+  - atMs: 0
+    value: true
+- key: connectivity.online
+  interp: hold
+  keys:
+  - atMs: 0
+    value: true
+- key: navigation.active
+  interp: hold
+  keys:
+  - atMs: 0
+    value: true
+- key: navigation.latitude
+  interp: linear
+  keys:
+  - atMs: 0
+    value: 21.0278
+- key: navigation.longitude
+  interp: linear
+  keys:
+  - atMs: 0
+    value: 105.8342
+- key: navigation.distanceToDestinationKm
+  interp: linear
+  keys:
+  - atMs: 0
+    value: 40
+- key: navigation.dataAgeSeconds
+  interp: linear
+  keys:
+  - atMs: 0
+    value: 8
+- key: interaction.assistantAvailable
+  interp: hold
+  keys:
+  - atMs: 0
+    value: true
+- key: interaction.assistantMode
+  interp: hold
+  keys:
+  - atMs: 0
+    value: BALANCED
+- key: interaction.doNotDisturb
+  interp: hold
+  keys:
+  - atMs: 0
+    value: false
+- key: interaction.inferenceConfidence
+  interp: linear
+  keys:
+  - atMs: 0
+    value: 0.95
+- key: phone.connected
+  interp: hold
+  keys:
+  - atMs: 0
+    value: true
+- key: phone.callActive
+  interp: hold
+  keys:
+  - atMs: 0
+    value: false
+- key: safety.alertLevel
+  interp: hold
+  keys:
+  - atMs: 0
+    value: NONE
+- key: safety.adasState
+  interp: hold
+  keys:
+  - atMs: 0
+    value: NORMAL
+- key: vehicleHealth.systemState
+  interp: hold
+  keys:
+  - atMs: 0
+    value: NORMAL
+- key: vehicleHealth.driveModeChangeAvailable
+  interp: hold
+  keys:
+  - atMs: 0
+    value: true
+- key: charging.pluggedIn
+  interp: hold
+  keys:
+  - atMs: 0
+    value: false
+  - atMs: 160000
+    value: true
+- key: charging.chargingActive
+  interp: hold
+  keys:
+  - atMs: 0
+    value: false
+  - atMs: 160000
+    value: true
+- key: identity.tripId
+  interp: hold
+  keys:
+  - atMs: 0
+    value: chuyen-pin-tu-tut
+- key: identity.vehicleId
+  interp: hold
+  keys:
+  - atMs: 0
+    value: 22222222-2222-4222-8222-000000000001
+- key: identity.worldId
+  interp: hold
+  keys:
+  - atMs: 0
+    value: ha-noi-mac-dinh
+- key: identity.parkedSessionId
+  interp: hold
+  keys:
+  - atMs: 0
+    value: ps-pin-tu-tut
+- key: frame.sessionEvent
+  interp: pulse
+  keys:
+  - atMs: 0
+    value: tripStarted
+- key: frame.driverResponse
+  interp: pulse
+  keys:
+  - atMs: 105000
+    value: accept
+expect:
+- id: E1
+  label: QC-01.1
+  describe: 'Pin tụt vì thời gian trôi, không vì ai gõ tay một mức nào — ba đoạn dốc
+    là ba đoạn `meta.description` đã mô tả từ đầu. Đoạn thứ nhất cắt 20% quanh giây
+    100, sát trước lúc tài xế trả lời ở giây 105, vì cửa sổ trả lời là sáu giây.
+
+    **Cửa sổ rộng 15 giây vì cái neo không chính xác, không vì hành vi chậm.** Mốc
+    cắt là một điểm **nội suy** giữa hai keyframe, và lượt phát chạy theo thời gian
+    thực nên có nhiễu nhịp. Đo 2026-09-06: cùng file, cùng code, ba lượt cho xanh
+    / đỏ / xanh với cửa sổ 4 giây. Trần độ trễ thật của chặng này sống ở `budgets:`
+    của `feature.yaml` và được một bài riêng canh — không phải ở đây.'
+  at: 95000
+  withinMs: 15000
+  reaches:
+    stage: action
+    outcome: ACTED

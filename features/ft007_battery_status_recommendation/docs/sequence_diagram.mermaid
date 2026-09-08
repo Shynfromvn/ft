@@ -1,0 +1,294 @@
+sequenceDiagram
+
+    actor U as Tài xế
+    participant TB as TBox<br/>Nguồn dữ liệu gốc của xe<br/>(Dependency 1)
+    participant S10 as S10 - Data Platform<br/>(Dependency 1)
+    participant NAV as Navigation<br/>Route Context<br/>(Dependency 2)
+    participant S5 as S5 - Traditional and Perception
+    participant MEM as S7 - Cloud AI / Shared Memory<br/>(Dependency 3)
+    participant S7 as S7 - Cloud AI / Orchestration<br/>(Dependency 4)
+    participant S6 as S6 - AI trên xe / Agent on Edge<br/>(Dependency 5)
+    participant HMI as MHU / HMI<br/>(Dependency 5)
+    participant ECU as ECU<br/>Drive-mode Controller
+    participant LOG as Audit / Telemetry Log<br/>(Dependency 6, BR-12)
+    autonumber
+
+    Note over U,LOG: UC-01 - Khuyến nghị chế độ vận hành theo trạng thái pin<br/>Quy ước: mọi nhánh ghi "DỪNG LUỒNG" (fails closed) thì S5 không tạo hoặc không phân phối Candidate<br/>Mọi ký hiệu trong ngoặc là tham chiếu ngược tài liệu BA gốc
+
+    rect rgb(245, 245, 245)
+    Note over U,LOG: GIAI ĐOẠN 0 - ĐIỀU KIỆN TIÊN QUYẾT (Preconditions)
+
+    TB->>S10: Telemetry xe liên tục<br/>SyncType = OnWakeupAndOnChange<br/>(Dependency 1, NFR-01, NFR-07)
+    S10->>S5: Trạng thái nền: ViTa State, Assistant Mode,<br/>Network, Vehicle State, System State,<br/>Safety/ADAS Alert, Audio/Call State<br/>(Dependency 1, Preconditions, NFR-07)
+
+    alt Không thoả điều kiện tiên quyết
+        Note over S5: vita != available<br/>OR assistant_mode = quiet / unknown<br/>OR network = offline<br/>OR vehicle_state != parked / driving<br/>OR system state != normal<br/>(Preconditions, Bước 5 - Eligibility gates)
+        S5->>LOG: Ghi reason code:<br/>assistant_mode_not_allowed / offline<br/>(E04, BR-02, BR-12, NFR-08)
+        Note over S5,LOG: DỪNG LUỒNG<br/>(E04, AC-01 - mệnh đề Given không thoả)
+    else Thoả đủ điều kiện tiên quyết
+        Note over S5: vita = available<br/>AND assistant_mode != quiet / unknown<br/>AND network = online<br/>AND vehicle_state = parked / driving<br/>AND system state = normal<br/>(Preconditions, BR-02, AC-01)
+    end
+    end
+
+    rect rgb(235, 245, 255)
+    Note over U,LOG: GIAI ĐOẠN 1 - TRIGGER và BƯỚC 1: Tiếp nhận sự kiện SoC
+
+    TB->>S10: Giá trị SoC và drive-mode hiện tại<br/>(Dependency 1, NFR-01, NFR-07)
+    S10->>S5: Bước 1 - SoC event intake:<br/>giá trị SoC, drive-mode state,<br/>timestamp, source metadata<br/>(Bước 1, Dependency 1, NFR-01)
+
+    alt Trigger không phát sinh
+        Note over S5: SoC chưa vượt ngưỡng theo chiều giảm<br/>VÀ không có chuyến đi mới / đổi lộ trình<br/>(Trigger)
+        Note over S5: DỪNG LUỒNG - chờ sự kiện tiếp theo<br/>(Trigger, BR-01)
+    else Trigger phát sinh
+        Note over S5: SoC giảm xuống ≤ 20% <br/>OR chuyến đi mới bắt đầu / lộ trình thay đổi<br/>trong khi SoC đã ≤ 20%<br/>(Trigger, Mô tả - Soft Warning Threshold, BR-01)
+    end
+    end
+
+    rect rgb(255, 250, 235)
+    Note over U,LOG: BƯỚC 2 - Xác thực điều kiện kích hoạt (Trigger validation)
+
+    Note over S5: Kiểm tra: SoC = 20% (BR-01)<br/>AND xe chưa ở Eco Mode (BR-01, AC-01)<br/>AND các trường bắt buộc hợp lệ (Bước 2)<br/>AND độ mới của dữ liệu ≤ 10 giây (NFR-01)
+
+    alt Dữ liệu thiếu, cũ hoặc không nhất quán
+        S5->>LOG: data_missing / data_stale / invalid_payload<br/>(E01, AC-01, NFR-01, NFR-08, BR-12)
+        Note over S5,LOG: DỪNG LUỒNG - không tạo Candidate<br/>(E01, Bước 2)
+    else Xe đã ở Eco Mode
+        S5->>LOG: already_in_eco_mode<br/>(Bước 5 - Fail-closed, BR-01, BR-12)
+        Note over S5,LOG: DỪNG LUỒNG - không tạo Candidate<br/>(BR-01, AC-01)
+    else Dữ liệu hợp lệ và xe chưa ở Eco Mode
+        Note over S5: Tiếp tục sang Bước 3<br/>(Bước 2, BR-01)
+    end
+    end
+
+    rect rgb(240, 255, 240)
+    Note over U,LOG: BƯỚC 3 - Truy xuất S7 Shared Memory
+
+    S5->>MEM: Yêu cầu snapshot: attention-window,<br/>kết quả Eco gần nhất, duplicate Candidate state,<br/>suppression history<br/>(Bước 3, Dependency 3, BR-11)
+
+    alt Memory không phản hồi trong ≤ 300 ms hoặc không hợp lệ
+        MEM--x S5: Timeout / invalid / expired / inconsistent<br/>(E02, NFR-02)
+        S5->>LOG: memory_unavailable / memory_timeout /<br/>memory_expired / memory_inconsistent<br/>(E02, AC-02, BR-11, NFR-02, NFR-10)
+        Note over S5,LOG: DỪNG LUỒNG - không tạo Candidate<br/>(Bước 3 - fail closed, BR-11, AC-02)
+    else Memory trả snapshot hợp lệ trong ≤ 300 ms
+        MEM-->>S5: Snapshot hợp lệ, có phiên bản, chưa hết hạn<br/>(Dependency 3, NFR-02, NFR-10)
+        Note over S5: Tiếp tục sang Bước 4<br/>(Bước 3)
+    end
+    end
+
+    rect rgb(255, 240, 245)
+    Note over U,LOG: BƯỚC 4 - Kiểm tra bối cảnh Navigation (Proximity)
+
+    S5->>NAV: Yêu cầu: khoảng cách còn lại tới điểm đến (km),<br/>loại điểm đến, độ mới lộ trình,<br/>mức phù hợp của trạm sạc<br/>(Bước 4, Dependency 2, NFR-01)
+
+    alt Navigation không khả dụng hoặc không hợp lệ
+        NAV--x S5: Unavailable / stale (quá 2 phút) /<br/>inconsistent / không xác định được loại điểm đến<br/>(E03, NFR-01)
+        S5->>LOG: navigation_unavailable / navigation_stale /<br>navigation_inconsistent / destination_type_unknown<br>(E03, AC-05, NFR-01, NFR-08)
+        Note over S5,LOG: DỪNG LUỒNG - không tạo Candidate<br/>(Bước 4 - fail closed, E03, AC-05)
+    else destination_type = Home / Charging Station VÀ khoảng cách còn lại nhỏ hơn 5 km
+        NAV-->>S5: destination_type = Home / Charging Station<br/>remaining_distance nhỏ hơn 5 km<br/>(Dependency 2, Mô tả - Soft Warning Threshold)
+        S5->>LOG: proximity_suppressed<br/>(A02, BR-09, AC-03, BR-12)
+        Note over S5,LOG: DỪNG LUỒNG - chặn im lặng, không tạo Candidate<br/>(Bước 4, A02, BR-09, AC-03)
+    else destination_type = Other VÀ khoảng cách còn lại nhỏ hơn 5 km
+        NAV-->>S5: destination_type = Other<br/>remaining_distance nhỏ hơn 5 km<br/>(Dependency 2)
+        Note over S5: KHÔNG chặn theo khoảng cách đơn thuần<br/>(A02, BR-09, AC-04, UI/UX 9.1-1) - tiếp tục Bước 5
+    else Khoảng cách còn lại từ 5 km trở lên
+        NAV-->>S5: remaining_distance từ 5 km trở lên<br/>(Dependency 2)
+        Note over S5: Tiếp tục Bước 5<br/>(Bước 4, BR-09)
+    end
+    end
+
+    rect rgb(245, 240, 255)
+    Note over U,LOG: BƯỚC 5 - Cổng điều kiện đủ, kiểm tra chặn và phân loại
+
+    Note over S5: ELIGIBILITY GATES<br>vita_available AND mode = balanced/proactive AND online<br>AND vehicle_state = parked/driving AND system normal AND chưa ở Eco<br>(Bước 5, Preconditions, BR-02, AC-01)
+    Note over S5: BLOCKING CHECKS<br/>no safety/system alert AND no adas warning/intervention<br/>AND no call AND no prioritized interaction<br/>AND no attention-window conflict<br/>(Bước 5, BR-05, BR-06, E05, E06, AC-11, AC-12)
+    Note over S5: DATA CHECKS<br/>soc, drive-mode, route, timestampt, source metadata,<br/> candidate expiry are fresh, valid and consistent<br/>(Bước 5, E01, E09, NFR-01)
+    Note over S5: MEMORY CHECKS<br/>Không có Candidate Eco trùng đang hoạt động<br/>Không có kết quả gần đây mâu thuẫn<br/>(Bước 5, BR-11, E02, AC-02, NFR-10)
+
+    alt Bất kỳ cổng nào không đạt - FAIL CLOSED
+        S5->>LOG: Một trong các reason code:<br/>assistant_mode_not_allowed · offline · safety_preempted<br/>call_active · data_stale · invalid_payload<br/>duplicate_candidate · candidate_expired · already_in_eco_mode<br/>(Bước 5 - Fail-closed, E01, E02, E04, E05, E06,<br/>BR-05, BR-06, BR-12, NFR-08)
+        Note over S5,LOG: DỪNG LUỒNG - không tạo Candidate<br/>(AC-01, NFR-08 - 0 Candidate khi tiền đề không thoả)
+    else Tất cả các cổng đều đạt
+        Note over S5: CLASSIFICATION<br/>Candidate hợp lệ · Direct-impact<br/>Topic = Energy and Charging<br/>(Bước 5, BR-02, AC-01)
+        Note over S5: POLICY NOTE<br/>Không áp frequency cap / cooldown<br/>Vẫn ghi user response và suppression history<br/>để audit, chống trùng và chính sách tương lai<br/>(Bước 5 - Policy note, BR-10, BR-12)
+    end
+    end
+
+    rect rgb(235, 255, 250)
+    Note over U,LOG: BƯỚC 6 và 7 - Tạo Candidate và định tuyến
+
+    S5->>S7: Bước 6 - Candidate payload:<br/>Candidate ID · SoC · drive-mode state<br/>route suppression result · classification · Topic<br/>data source-freshness ref · confidence-policy ref · expiry<br/>Response Type = SUGGEST · confirmation contract<br/>(Bước 6, BR-02, BR-07, AC-01, NFR-02, NFR-05)
+    S5->>LOG: Ghi sự kiện candidate_created<br/>(BR-12, AC-16)
+
+    Note over S7: Bước 7 - Điều phối bối cảnh toàn cục<br/>Kiểm tra lại tính hợp lệ trước khi định tuyến<br/>(Bước 7, Dependency 4, NFR-09)
+
+    alt Bối cảnh ở mức S7 chặn việc phân phối
+        S7->>MEM: Cập nhật kết quả suppressed<br/>(Dependency 3, NFR-10)
+        S7->>LOG: Reason code tương ứng<br/>safety_preempted / call_active / candidate_expired<br/>(E05, E06, E09, BR-05, BR-06, BR-12, NFR-09)
+        Note over S7,LOG: DỪNG LUỒNG - không định tuyến tới S6<br/>(Bước 7, AC-12, NFR-09 - 0 routing khi context chặn)
+    else Việc phân phối vẫn hợp lệ, an toàn và còn trong expiry
+        S7->>S6: Định tuyến Candidate - bảo toàn 100%<br/>Candidate ID, response type, confirmation contract,<br/>CTA payload, expiry, context status<br/>(Bước 7, Dependency 4, NFR-03, NFR-09)
+    end
+    end
+
+    rect rgb(255, 245, 235)
+    Note over U,LOG: BƯỚC 8 - Xác thực thời gian thực lần cuối và phân phối
+
+    S6->>S10: Đọc lại Vehicle State và Audio State thời điểm hiện tại<br/>(Bước 8, Dependency 1, Dependency 5)
+    S10-->>S6: Vehicle State · Audio State · Safety Alert State<br/>(Dependency 1, NFR-01, NFR-07)
+
+    alt Candidate đã hết hạn trước khi phân phối
+        S6->>LOG: candidate_expired<br/>(E09, AC-16, BR-12)
+        Note over S6,LOG: DỪNG LUỒNG - gỡ đầu ra không hợp lệ<br/>(E09)
+    else Safety hoặc System Alert đang hoạt động
+        alt Alert loại Warning
+            Note over S6: Tạm dừng hoặc chặn Voice theo UX Principles<br/>(E05, BR-05)
+        else Alert loại Intervention
+            Note over S6: Dừng toàn bộ Voice-Sound của ViTa<br/>Gỡ nội dung hiển thị không còn hợp lệ<br/>KHÔNG tự động lặp lại<br/>(E05, BR-05)
+        end
+        S6->>LOG: safety_preempted<br/>(E05, BR-05, AC-12, BR-12)
+        Note over S6,LOG: DỪNG LUỒNG - ViTa nhường quyền, không cạnh tranh Safety-ADAS<br/>(BR-05, AC-12)
+    else Audio State = Call
+        alt Vehicle State = Driving
+            Note over S6: Call chặn Voice và Sound<br/>KHÔNG được dùng popup-Text thay thế trên HMI<br/>(E06, BR-06, BR-03, AC-11)
+            S6->>LOG: call_active - hoãn hoặc để hết hạn theo expiry<br/>(E06, BR-06, AC-11, BR-12)
+            Note over S6,LOG: DỪNG LUỒNG<br/>(E06, AC-11)
+        else Vehicle State = Parked
+            alt UI-Text không che giao diện cuộc gọi VÀ expiry còn cho phép
+                S6->>HMI: Hiển thị UI-Text hạn chế<br/>(Bước 8 - Call, E06, Dependency 5)
+                HMI-->>U: Nội dung hiển thị không che giao diện cuộc gọi<br/>(E06)
+            else Che giao diện cuộc gọi HOẶC hết expiry
+                S6->>LOG: call_active / candidate_expired<br/>(E06, E09, BR-12)
+                Note over S6,LOG: DỪNG LUỒNG<br/>(E06, E09)
+            end
+        end
+    else Không có cuộc gọi và không có Safety Alert
+        alt Vehicle State = Driving
+            S6->>HMI: Yêu cầu phát Voice-only, ngắn gọn<br/>(Bước 8 - Driving, BR-03, AC-06)
+            HMI-->>U: TTS "Pin còn 20%. Chuyển sang Eco Mode<br/>có thể giúp tiết kiệm pin hơn. Bạn muốn chuyển không?"<br/>(UI/UX 9.1-1, Constraints - chỉ tiếng Việt)
+            Note over S6,HMI: KHÔNG popup, Answer Card, Toast, CTA, Mascot,<br/>Text chi tiết, danh sách, biểu mẫu hay thao tác chạm<br/>(BR-03, AC-06, UI/UX 9.2-1)
+        else Vehicle State = Parked
+            alt HMI khả dụng VÀ không có tương tác ưu tiên cao hơn
+                S6->>HMI: Voice kèm Answer Card<br/>(Bước 8 - Parked, A01, BR-04)
+                HMI-->>U: Voice + Answer Card:<br/>SoC · gợi ý Eco Mode · lợi ích ngắn<br/>CTA "Chuyển sang Eco Mode" và "Để sau"<br/>(A01, AC-07, UI/UX 9.2-2)
+                Note over S6,HMI: Cho phép xác nhận bằng Touch khi Parked<br/>(A01, BR-04, AC-07, UI/UX 9.2-2)
+            else HMI không khả dụng hoặc bị chặn
+                S6->>LOG: delivery_failed<br/>(E10, AC-16, BR-12)
+                Note over S6,LOG: DỪNG LUỒNG - không giả định đã thông báo thành công<br/>(E10)
+            end
+        end
+    end
+
+    opt E07 - Parked chuyển sang Driving trong khi đang hiển thị
+        S10->>S6: Vehicle State đổi thành Driving<br/>(Dependency 1, E07)
+        S6->>HMI: Ẩn Answer Card, CTA, Mascot, Text chi tiết,<br/>biểu mẫu, danh sách trong ≤ 100 ms<br/>(Bước 8, E07, AC-13, NFR-06)
+        Note over S6,HMI: KHÔNG thu nhỏ thẻ thành thẻ chữ nhỏ<br/>(E07, AC-13, NFR-06)
+        alt Candidate còn hợp lệ và an toàn
+            HMI-->>U: Chỉ tiếp tục bằng Voice ngắn gọn<br/>(Bước 8, BR-03, AC-06, AC-13)
+        else Không còn hợp lệ
+            S6->>LOG: candidate_expired / safety_preempted<br/>(E09, E05, BR-12)
+            Note over S6,LOG: DỪNG LUỒNG<br/>(E09, AC-13)
+        end
+    end
+
+    opt E10 - Phân phối đầu ra thất bại
+        HMI--x S6: Voice playback lỗi / render Card lỗi /<br/>MHU không xác nhận<br/>(E10, Dependency 5)
+        S6->>LOG: delivery_failed<br/>(E10, AC-16, BR-12)
+        Note over S6,LOG: DỪNG LUỒNG - Không giả định đã thông báo thành công<br/>Tránh thử lại trùng lặp gây mất an toàn khi Driving<br/>(E10, BR-03)
+    end
+    Note over S5,U: NFR-04 ≤ 1 giây từ khi S6 nhận tới đầu ra đầu tiên<br/>NFR-05 ≤ 3 giây đầu-cuối từ khi tạo Candidate<br/>Cộng dồn: NFR-02 (S5) + NFR-03 (S7) + NFR-04 (S6)
+    end
+
+    rect rgb(240, 248, 255)
+    Note over U,LOG: BƯỚC 9 và 10 - Phản hồi người dùng, thực thi và trạng thái
+
+    alt Xác nhận bằng giọng nói - CONFIRM
+        U->>HMI: "Có" / "Chuyển sang Eco" / "Bật Eco đi"<br/>(Bước 9 - Confirm by Voice, Constraints)
+        HMI->>S6: Intent CONFIRM<br/>(Bước 9, NFR-11 - nhận diện ≥ 95%, 0 false-positive confirm)
+        Note over S6: BR-07 - chỉ thực thi sau xác nhận tường minh<br/>AC-08 - chưa xác nhận rõ thì không được gọi ECU
+        S6->>ECU: Bước 10 - Yêu cầu chuyển sang Eco Mode<br/>(Bước 9, Bước 10, BR-07, AC-08, Dependency 5)
+        alt ECU xác nhận chuyển thành công
+            ECU-->>S6: Eco Mode active - confirmed<br/>(Bước 10, BR-08, AC-09)
+            alt Vehicle State = Driving
+                S6->>HMI: STATUS success - Voice-only, ngắn gọn<br/>(Bước 10, BR-03, AC-06)
+                HMI-->>U: TTS "Đã chuyển sang Eco Mode."<br/>(UI/UX 9.1-3)
+            else Vehicle State = Parked
+                S6->>HMI: STATUS success - Voice và trạng thái ngắn trên màn hình<br/>(Bước 10, BR-04)
+                HMI-->>U: "Đã chuyển sang Eco Mode."<br/>(UI/UX 9.1-3, UI/UX 9.2-3)
+            end
+            Note over S6: Kết quả cuối = acted / completed<br/>(Postconditions, BR-08, AC-09, AC-16,<br/>NFR-11 - 0 false-positive success)
+        else ECU từ chối hoặc thực thi thất bại
+            ECU--x S6: Rejected / failed kèm nguyên nhân nếu có<br/>(E08, AC-10)
+            Note over S6: KHÔNG báo Success<br/>Giữ nguyên chế độ vận hành hiện tại<br/>(BR-08, AC-10, Postconditions)
+            alt Vehicle State = Driving
+                S6->>HMI: STATUS Error - Voice-only<br/>(Bước 10, BR-03, AC-06)
+                HMI-->>U: TTS "Mình chưa chuyển được sang Eco Mode.<br/>Bạn thử lại khi an toàn nhé."<br/>(UI/UX 9.1-4)
+                Note over S6,HMI: KHÔNG hiển thị hướng dẫn thao tác thủ công trên HMI<br/>(Bước 10, BR-03)
+            else Vehicle State = Parked
+                S6->>HMI: STATUS Error kèm phương án khôi phục an toàn nhất<br/>(Bước 10, BR-04)
+                HMI-->>U: "Chưa chuyển được sang Eco Mode."<br/>(UI/UX 9.2-3)
+            end
+            S6->>LOG: execution_failed kèm nguyên nhân<br/>(E08, BR-08, AC-10, BR-12, Postconditions)
+        end
+    else Xác nhận bằng thao tác chạm - chỉ khi Parked
+        U->>HMI: Chạm CTA "Chuyển sang Eco Mode"<br/>(Bước 9 - Confirm by Touch, UI/UX 9.2-2)
+        alt Vehicle State = Parked AND Answer Card-CTA còn hợp lệ
+            HMI->>S6: Touch CONFIRM<br/>(Bước 9, A01, BR-04, AC-07)
+            Note over S6: Đi tiếp theo đúng nhánh thực thi Bước 10 ở trên<br/>(Bước 10, BR-07, AC-08)
+        else Đang Driving hoặc CTA không còn hợp lệ
+            Note over S6,HMI: KHÔNG chấp nhận Touch<br/>(BR-03, AC-06, AC-13, NFR-06)
+        end
+    else Từ chối hoặc huỷ - REJECT
+        U->>HMI: "Không" / "Để sau" / "Bỏ qua" / chạm "Để sau" / huỷ<br/>(Bước 9 - Reject or cancel, UI/UX 9.2-2)
+        HMI->>S6: Intent REJECT hoặc SNOOZE<br/>(Bước 9, AC-14)
+        Note over S6: Kết thúc tương tác<br/>Giữ nguyên chế độ vận hành hiện tại<br/>(Bước 9, AC-14, Postconditions)
+        S6->>LOG: rejected / snoozed theo intent được hỗ trợ<br/>(AC-14, AC-16, BR-12)
+        Note over S6: BR-10 - KHÔNG tự động trừng phạt khi bị từ chối nhiều lần<br/>Không tắt Voice, không thay bằng icon HMI tĩnh<br/>(BR-10, Bước 5 - Policy note)
+    else Không phản hồi trong 6 giây - IGNORE
+        Note over U,S6: Hết 6 giây không có phản hồi được hỗ trợ<br/>(Bước 9 - No response, AC-14)
+        Note over S6: Kết thúc tương tác<br/>Giữ nguyên chế độ vận hành hiện tại<br/>(Bước 9, AC-14, Postconditions)
+        S6->>LOG: ignored<br/>(AC-14, AC-16, BR-12)
+    else Phản hồi mơ hồ - VERIFY
+        U->>HMI: Câu trả lời không rõ, nhiễu, chồng tiếng,<br/>không ánh xạ được intent xác nhận<br/>(AC-15)
+        HMI->>S6: Intent không xác định<br/>(AC-15, NFR-11 - 0 false-positive Eco confirmation)
+        Note over S6: TUYỆT ĐỐI không thực thi chuyển Eco<br/>(AC-15, BR-07, AC-08)
+        alt Vehicle-Audio State cho phép
+            S6->>HMI: VERIFY - hỏi lại<br/>(AC-15, BR-03, BR-06)
+            HMI-->>U: Câu hỏi xác nhận lại<br/>(AC-15, Constraints)
+        else State không cho phép
+            S6->>LOG: Kết thúc, không VERIFY<br/>(AC-15, BR-05, BR-06, BR-12)
+        end
+    else Hỏi để làm rõ - A03
+        U->>HMI: "Tại sao?" / "Eco Mode là gì?"<br/>(Bước 9 - Clarification, A03)
+        HMI->>S6: Intent clarification<br/>(A03)
+        alt Vehicle State = Driving
+            S6->>HMI: Giải thích ngắn gọn, Voice-only<br/>(A03, BR-03, AC-06)
+            HMI-->>U: "Eco Mode giảm tiêu thụ năng lượng<br/>và giúp kéo dài quãng đường."<br/>(A03, Mô tả, Constraints)
+        else Vehicle State = Parked
+            S6->>HMI: Hiển thị chi tiết trên Answer Card nếu còn hợp lệ<br/>(A03, BR-04, AC-07)
+            HMI-->>U: Voice và chi tiết trên thẻ<br/>(A03, UI/UX 9.2-2)
+        end
+        Note over S6: Quay lại chờ phản hồi xác nhận<br/>(A03, Bước 9, BR-07)
+    else Ngắt bằng yêu cầu khác - Barge-in
+        U->>HMI: Yêu cầu mới cắt ngang<br/>(Bước 9 - Interrupt with another request)
+        HMI->>S6: Barge-in detected<br/>(Bước 9)
+        S6->>HMI: Dừng TTS hiện tại trong ngưỡng barge-in latency<br/>(Bước 9)
+        S6->>LOG: Ghi kết quả Candidate Eco nếu đầu ra đã bắt đầu<br/>(Bước 9, AC-16, BR-12)
+        Note over S6: Xử lý intent mới nhất của người dùng<br/>(Bước 9)
+    else Candidate hết hạn giữa chừng - E09
+        Note over S6: Expiry đạt tới trước khi xác nhận hoặc thực thi<br/>(E09, Bước 6 - expiry)
+        S6->>HMI: Gỡ đầu ra không còn hợp lệ<br/>(E09)
+        S6->>LOG: candidate_expired<br/>(E09, AC-16, BR-12, Postconditions)
+    end
+    end
+
+    rect rgb(248, 248, 240)
+    Note over U,LOG: BƯỚC 11 - Cập nhật bộ nhớ và audit
+
+    S6->>S7: Kết quả cuối cùng: Candidate ID · SoC ·<br/>drive-mode trước-sau · route suppression result ·<br/>Vehicle State · Assistant Mode · Audio State ·<br/>kênh đầu ra · user-response tag · execution result ·<br/>timestamp · reason code<br/>(Bước 11, AC-16, BR-12)
+    S7->>MEM: Cập nhật Shared Memory -<br/>chống trùng lặp, chặn trong tương lai, audit<br/>(Bước 11, Dependency 3, NFR-10 - bảo toàn 100% source,<br/>event type, Candidate ID, timestamp, version, validity, outcome)
+    S7->>LOG: Ghi trọn vòng đời Candidate<br/>(Bước 11, Dependency 6, BR-12, AC-16)
+
+    Note over S5,LOG: POSTCONDITIONS - trạng thái cuối cùng là một trong:<br/>acted · rejected · snoozed · ignored · suppressed ·<br/>expired · failed · completed<br/>(Postconditions, AC-16)
+    Note over S5,LOG: Nếu xác nhận tường minh và ECU xác nhận thành công → xe ở Eco Mode (BR-07, BR-08, AC-09)<br/>Nếu từ chối, không phản hồi, hoặc hết hạn → giữ nguyên chế độ hiện tại (AC-14, E09)<br/>Nếu thực thi thất bại → STATUS Error, không ghi nhận thành công giả (E08, BR-08, AC-10)<br/>Mọi sự kiện đều truy vết được trong log S7/audit (BR-12, AC-16, Dependency 6)
+    end

@@ -1,0 +1,217 @@
+schemaVersion: 4
+meta:
+  id: im-lang
+  title: Im lặng — sáu lần pin chạm 20%, năm lần im vì năm lý do khác nhau
+  description: 'Kịch bản khó demo nhất và cần thiết nhất. Pin đi qua mốc 20% sáu lần;
+    năm lần trợ lý im, mỗi lần vì một cổng khác của `Bước 5`, và một lần **phải nói**.
+    Lần phải nói là lần dễ bị làm sai nhất: điểm đến cách 3 km nhưng không phải Nhà
+    và không phải trạm sạc, nên khoảng cách đơn thuần KHÔNG phải lý do chặn. Mỗi lần
+    im đòi hai thứ, không phải một: không có đầu ra nào tới tài xế, **và** một bản
+    ghi nêu mã lý do cùng chặng — để phân biệt "cân nhắc rồi chọn không nói" với "hỏng
+    nên không nói gì". Giữa hai lần, pin phải hồi lên trên ngưỡng ra thì mốc mới được
+    vũ trang lại; đó là lý do các bước nâng pin lên 24% nằm xen giữa.
+
+    '
+  durationMs: 300000
+factors:
+- key: connectivity.online
+  interp: hold
+  keys:
+  - atMs: 0
+    value: true
+- key: connectivity.dataAgeSeconds
+  interp: linear
+  keys:
+  - atMs: 0
+    value: 1
+- key: identity.tripId
+  interp: hold
+  keys:
+  - atMs: 0
+    value: chuyen-di-im-lang
+- key: motion.socPct
+  interp: linear
+  keys:
+  - atMs: 0
+    value: 24
+  - atMs: 20000
+    value: 19.5
+  - atMs: 45000
+    value: 24
+  - atMs: 70000
+    value: 19.5
+  - atMs: 100000
+    value: 24
+  - atMs: 125000
+    value: 19.5
+  - atMs: 160000
+    value: 24
+  - atMs: 185000
+    value: 19.5
+  - atMs: 215000
+    value: 24
+  - atMs: 230000
+    value: 19.5
+  - atMs: 260000
+    value: 24
+  - atMs: 275000
+    value: 19.5
+- key: motion.socDataAgeSeconds
+  interp: linear
+  keys:
+  - atMs: 0
+    value: 1
+  - atMs: 20000
+    value: 1
+  - atMs: 45000
+    value: 1
+  - atMs: 70000
+    value: 1
+  - atMs: 100000
+    value: 1
+  - atMs: 125000
+    value: 1
+  - atMs: 160000
+    value: 1
+  - atMs: 185000
+    value: 1
+  - atMs: 215000
+    value: 1
+  - atMs: 230000
+    value: 30
+  - atMs: 260000
+    value: 1
+  - atMs: 275000
+    value: 1
+- key: motion.vehicleInDrive
+  interp: hold
+  keys:
+  - atMs: 0
+    value: true
+- key: motion.gearState
+  interp: hold
+  keys:
+  - atMs: 0
+    value: D
+- key: motion.driveMode
+  interp: hold
+  keys:
+  - atMs: 0
+    value: ECO
+  - atMs: 45000
+    value: NORMAL
+- key: navigation.active
+  interp: hold
+  keys:
+  - atMs: 0
+    value: true
+  - atMs: 60000
+    value: true
+  - atMs: 115000
+    value: true
+  - atMs: 175000
+    value: true
+- key: navigation.latitude
+  interp: linear
+  keys:
+  - atMs: 0
+    value: 21.0278
+  - atMs: 60000
+    value: 21.0278
+- key: navigation.longitude
+  interp: linear
+  keys:
+  - atMs: 0
+    value: 105.8342
+  - atMs: 60000
+    value: 105.8342
+- key: navigation.distanceToDestinationKm
+  interp: linear
+  keys:
+  - atMs: 0
+    value: 40
+  - atMs: 60000
+    value: 3
+  - atMs: 115000
+    value: 3
+  - atMs: 175000
+    value: 40
+- key: navigation.dataAgeSeconds
+  interp: linear
+  keys:
+  - atMs: 0
+    value: 8
+  - atMs: 60000
+    value: 8
+  - atMs: 115000
+    value: 8
+  - atMs: 175000
+    value: 200
+  - atMs: 215000
+    value: 8
+- key: vehicleHealth.systemState
+  interp: hold
+  keys:
+  - atMs: 0
+    value: NORMAL
+- key: safety.alertLevel
+  interp: hold
+  keys:
+  - atMs: 0
+    value: NONE
+- key: safety.adasState
+  interp: hold
+  keys:
+  - atMs: 0
+    value: NORMAL
+- key: interaction.assistantAvailable
+  interp: hold
+  keys:
+  - atMs: 0
+    value: true
+- key: interaction.assistantMode
+  interp: hold
+  keys:
+  - atMs: 0
+    value: BALANCED
+  - atMs: 260000
+    value: QUIET
+- key: interaction.doNotDisturb
+  interp: hold
+  keys:
+  - atMs: 0
+    value: false
+- key: interaction.inferenceConfidence
+  interp: linear
+  keys:
+  - atMs: 0
+    value: 0.96
+- key: identity.vehicleId
+  interp: hold
+  keys:
+  - atMs: 0
+    value: 22222222-2222-4222-8222-000000000001
+- key: identity.worldId
+  interp: hold
+  keys:
+  - atMs: 0
+    value: ha-noi-mac-dinh
+- key: frame.sessionEvent
+  interp: pulse
+  keys:
+  - atMs: 0
+    value: parkedSessionStarted
+- key: identity.parkedSessionId
+  interp: hold
+  keys:
+  - atMs: 0
+    value: ps-im-lang
+expect:
+- id: E1
+  label: QC-01.3 · QC-03.1 · QC-05.1 · QC-29.1 · QC-30.1
+  describe: 'Sáu tình huống nối tiếp, và **không** cái nào được tạo Candidate. Đây
+    là phép thử thật của `silent`: cả vế ∀ (suốt cửa sổ, không nói gì) lẫn vế ∃ (có
+    ghi được vì sao).'
+  at: 0
+  forMs: 300000
+  silent: {}

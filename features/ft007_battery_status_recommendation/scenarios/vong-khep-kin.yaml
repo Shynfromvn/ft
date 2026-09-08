@@ -1,0 +1,182 @@
+schemaVersion: 4
+meta:
+  id: vong-khep-kin
+  title: Vòng khép kín — tài xế đồng ý, bộ điều khiển xác nhận, xe ở Eco
+  description: 'Kịch bản đầu tiên đi hết vòng: trợ lý nói, tài xế đồng ý, **bộ điều
+    khiển thật sự đổi chế độ**, và chỉ sau khi nó xác nhận thì trợ lý mới báo thành
+    công.
+
+    Trước ADR-0042 đoạn cuối ấy không tồn tại. Lệnh `SET_DRIVE_MODE` được sinh ra
+    và không ai đọc; `driverResponse` chảy qua cả hệ thống mà không ai chạm tới; và
+    "chế độ đã đổi hay chưa" là một `bool` do bên gọi tự khai. Tài xế đồng ý và không
+    gì xảy ra.
+
+    Đây là kịch bản để trước mặt vendor khi họ hỏi *"rồi sao nữa"*.
+
+    '
+  durationMs: 90000
+factors:
+- key: connectivity.online
+  interp: hold
+  keys:
+  - atMs: 0
+    value: true
+- key: connectivity.dataAgeSeconds
+  interp: linear
+  keys:
+  - atMs: 0
+    value: 1
+- key: motion.socPct
+  interp: linear
+  keys:
+  - atMs: 0
+    value: 26
+  - atMs: 30000
+    value: 20
+  - atMs: 45000
+    value: 19.8
+  - atMs: 60000
+    value: 19.5
+- key: motion.socDataAgeSeconds
+  interp: linear
+  keys:
+  - atMs: 0
+    value: 1
+  - atMs: 30000
+    value: 1
+  - atMs: 45000
+    value: 1
+  - atMs: 60000
+    value: 1
+- key: motion.driveMode
+  interp: hold
+  keys:
+  - atMs: 0
+    value: NORMAL
+  - atMs: 45000
+    value: ECO
+- key: motion.gearState
+  interp: hold
+  keys:
+  - atMs: 0
+    value: D
+- key: motion.vehicleInDrive
+  interp: hold
+  keys:
+  - atMs: 0
+    value: true
+- key: navigation.active
+  interp: hold
+  keys:
+  - atMs: 0
+    value: true
+- key: navigation.latitude
+  interp: linear
+  keys:
+  - atMs: 0
+    value: 21.0278
+- key: navigation.longitude
+  interp: linear
+  keys:
+  - atMs: 0
+    value: 105.8342
+- key: navigation.distanceToDestinationKm
+  interp: linear
+  keys:
+  - atMs: 0
+    value: 40
+- key: navigation.dataAgeSeconds
+  interp: linear
+  keys:
+  - atMs: 0
+    value: 8
+- key: interaction.assistantAvailable
+  interp: hold
+  keys:
+  - atMs: 0
+    value: true
+- key: interaction.assistantMode
+  interp: hold
+  keys:
+  - atMs: 0
+    value: BALANCED
+- key: interaction.doNotDisturb
+  interp: hold
+  keys:
+  - atMs: 0
+    value: false
+- key: interaction.inferenceConfidence
+  interp: linear
+  keys:
+  - atMs: 0
+    value: 0.95
+- key: phone.connected
+  interp: hold
+  keys:
+  - atMs: 0
+    value: true
+- key: phone.callActive
+  interp: hold
+  keys:
+  - atMs: 0
+    value: false
+- key: safety.alertLevel
+  interp: hold
+  keys:
+  - atMs: 0
+    value: NONE
+- key: safety.adasState
+  interp: hold
+  keys:
+  - atMs: 0
+    value: NORMAL
+- key: vehicleHealth.systemState
+  interp: hold
+  keys:
+  - atMs: 0
+    value: NORMAL
+- key: vehicleHealth.driveModeChangeAvailable
+  interp: hold
+  keys:
+  - atMs: 0
+    value: true
+- key: identity.tripId
+  interp: hold
+  keys:
+  - atMs: 0
+    value: chuyen-di-vong-khep-kin
+- key: identity.vehicleId
+  interp: hold
+  keys:
+  - atMs: 0
+    value: 22222222-2222-4222-8222-000000000001
+- key: identity.worldId
+  interp: hold
+  keys:
+  - atMs: 0
+    value: ha-noi-mac-dinh
+- key: frame.sessionEvent
+  interp: pulse
+  keys:
+  - atMs: 0
+    value: parkedSessionStarted
+- key: identity.parkedSessionId
+  interp: hold
+  keys:
+  - atMs: 0
+    value: ps-vong-khep-kin
+- key: frame.driverResponse
+  interp: pulse
+  keys:
+  - atMs: 34000
+    value: accept
+expect:
+- id: E1
+  label: QC-21.1
+  describe: 'Pin cắt 20% ở giây 30. Từ đó tới đầu ra đầu tiên hướng về tài xế: trần
+    ba giây.'
+  at: 29000
+  withinMs: 4000
+  reaches:
+    stage: action
+    outcome: ACTED

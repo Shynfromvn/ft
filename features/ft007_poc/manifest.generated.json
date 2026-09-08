@@ -1,0 +1,83 @@
+{
+  "_comment": "SINH RA bởi `make feature-manifest` từ spec.py — KHÔNG sửa tay. CI sinh lại rồi so sánh; sửa tay sẽ làm gate đỏ.",
+  "carScreen": {
+    "footer": [],
+    "header": [
+      {
+        "factor": "connectivity.online",
+        "format": "onlineDot",
+        "label": "online"
+      }
+    ],
+    "tiles": [
+      {
+        "factor": "motion.socPct",
+        "format": "percent",
+        "label": "batteryLevel"
+      },
+      {
+        "factor": "motion.remainingRangeKm",
+        "format": "distance",
+        "label": "range"
+      },
+      {
+        "factor": "motion.driveMode",
+        "format": "text",
+        "label": "driveMode"
+      },
+      {
+        "factor": "vehicleHealth.systemState",
+        "format": "text",
+        "label": "systemState"
+      }
+    ]
+  },
+  "description": "Khi mức pin đi qua ngưỡng thấp trong lúc xe đang vận hành, trợ lý nói đúng một câu cho tài xế biết có phải sạc dọc đường không và đề nghị chuyển chế độ tiết kiệm. Khi pin xuống mức nguy cấp, xe tự chuyển chế độ bảo toàn và nói rõ tài xế phải làm gì tiếp theo.",
+  "enabled": true,
+  "frontend": {
+    "componentKey": "BatteryStatusRecommendationDetail",
+    "kind": "custom"
+  },
+  "id": "FT-007",
+  "lastTested": "2026-08-25",
+  "name": "Khuyến nghị chế độ vận hành theo trạng thái pin",
+  "package": "ft007_battery_status_recommendation",
+  "publicResult": {
+    "allowedFields": [
+      "ok",
+      "featureId",
+      "resolvedPlan",
+      "actionsToExecute",
+      "recommendedActions",
+      "eventCode",
+      "final",
+      "confirmation",
+      "feedback"
+    ],
+    "mode": "allowlist"
+  },
+  "runtime": {
+    "events": [
+      "DRIVER_RESPONDED"
+    ],
+    "frontendProjection": "ft007",
+    "stateDomains": [
+      "motion",
+      "navigation",
+      "interaction",
+      "phone",
+      "connectivity",
+      "vehicleHealth",
+      "safety"
+    ]
+  },
+  "schemaVersion": 2,
+  "status": "Active",
+  "watches": [
+    {
+      "direction": "FALLING",
+      "entry": 20.0,
+      "signal": "motion.socPct"
+    }
+  ]
+}

@@ -1,0 +1,183 @@
+schemaVersion: 4
+meta:
+  id: duong-thuan
+  title: Đường thuận — pin chạm 20% khi đang chạy, tài xế đồng ý bằng giọng nói
+  description: 'UC-01 chạy hết một lượt không nhánh lỗi. Xe đang Driving, điểm đến
+    cách 40 km, Assistant Mode = Balanced, mọi dữ liệu còn tươi. Mức pin chạm 20%;
+    trợ lý nói đúng một câu chỉ bằng giọng; tài xế xác nhận; và chỉ sau khi bộ điều
+    khiển báo Eco Mode đang hoạt động thì trợ lý mới nói là đã chuyển. Đây là kịch
+    bản mở đầu mọi buổi demo — nó đi qua đủ bảy chặng.
+
+    '
+  durationMs: 90000
+factors:
+- key: connectivity.online
+  interp: hold
+  keys:
+  - atMs: 0
+    value: true
+- key: connectivity.dataAgeSeconds
+  interp: hold
+  keys:
+  - atMs: 0
+    value: 1
+- key: identity.tripId
+  interp: hold
+  keys:
+  - atMs: 0
+    value: chuyen-di-duong-thuan
+- key: motion.socPct
+  interp: linear
+  keys:
+  - atMs: 0
+    value: 26
+  - atMs: 30000
+    value: 22
+  - atMs: 45000
+    value: 19.6
+  - atMs: 55000
+    value: 19.4
+- key: motion.socDataAgeSeconds
+  interp: hold
+  keys:
+  - atMs: 0
+    value: 1
+  - atMs: 30000
+    value: 1
+  - atMs: 45000
+    value: 1
+  - atMs: 55000
+    value: 1
+- key: motion.vehicleInDrive
+  interp: hold
+  keys:
+  - atMs: 0
+    value: true
+- key: motion.gearState
+  interp: hold
+  keys:
+  - atMs: 0
+    value: D
+- key: motion.driveMode
+  interp: hold
+  keys:
+  - atMs: 0
+    value: NORMAL
+- key: navigation.active
+  interp: hold
+  keys:
+  - atMs: 0
+    value: true
+- key: navigation.latitude
+  interp: hold
+  keys:
+  - atMs: 0
+    value: 21.0278
+- key: navigation.longitude
+  interp: hold
+  keys:
+  - atMs: 0
+    value: 105.8342
+- key: navigation.distanceToDestinationKm
+  interp: hold
+  keys:
+  - atMs: 0
+    value: 40
+- key: navigation.dataAgeSeconds
+  interp: hold
+  keys:
+  - atMs: 0
+    value: 8
+- key: vehicleHealth.systemState
+  interp: hold
+  keys:
+  - atMs: 0
+    value: NORMAL
+- key: safety.alertLevel
+  interp: hold
+  keys:
+  - atMs: 0
+    value: NONE
+- key: safety.adasState
+  interp: hold
+  keys:
+  - atMs: 0
+    value: NORMAL
+- key: phone.connected
+  interp: hold
+  keys:
+  - atMs: 0
+    value: true
+- key: phone.callActive
+  interp: hold
+  keys:
+  - atMs: 0
+    value: false
+- key: interaction.assistantAvailable
+  interp: hold
+  keys:
+  - atMs: 0
+    value: true
+- key: interaction.assistantMode
+  interp: hold
+  keys:
+  - atMs: 0
+    value: BALANCED
+- key: interaction.doNotDisturb
+  interp: hold
+  keys:
+  - atMs: 0
+    value: false
+- key: interaction.inferenceConfidence
+  interp: hold
+  keys:
+  - atMs: 0
+    value: 0.96
+- key: identity.vehicleId
+  interp: hold
+  keys:
+  - atMs: 0
+    value: 22222222-2222-4222-8222-000000000001
+- key: identity.worldId
+  interp: hold
+  keys:
+  - atMs: 0
+    value: ha-noi-mac-dinh
+- key: frame.sessionEvent
+  interp: pulse
+  keys:
+  - atMs: 0
+    value: parkedSessionStarted
+- key: identity.parkedSessionId
+  interp: hold
+  keys:
+  - atMs: 0
+    value: ps-duong-thuan
+- key: frame.driverResponse
+  interp: pulse
+  keys:
+  - atMs: 50000
+    value: accept
+expect:
+- id: E1
+  label: QC-01.1
+  describe: 'Pin đi qua 20% khi mọi cổng đều mở — S5 phải tạo đúng một Candidate.
+    Neo ở giây 42 chứ không 45: `motion.socPct` nội suy tuyến tính, nên nó cắt ngưỡng
+    ở giây 43, không ở mốc keyframe.'
+  at: 42000
+  withinMs: 3000
+  reaches:
+    stage: action
+    outcome: ACTED
+    reasonCode: soft_threshold_crossed
+- id: E2
+  label: QC-08.1
+  describe: Chưa xác nhận thì chưa có lệnh nào rời hệ thống. Cửa sổ đóng **trước**
+    giây 50 — đó là lúc tài xế trả lời, và một khẳng định 'chưa xác nhận' đặt sau
+    câu trả lời là một khẳng định không bao giờ sai.
+  at: 44000
+  forMs: 5000
+  absent:
+    event: action
+    where:
+      featureId: FT-007

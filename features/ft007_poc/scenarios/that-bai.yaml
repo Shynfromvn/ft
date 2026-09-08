@@ -1,0 +1,187 @@
+schemaVersion: 4
+meta:
+  id: that-bai
+  title: Thất bại — bộ điều khiển từ chối, phản hồi mơ hồ, đề cử hết hạn
+  description: 'Bốn nhánh hỏng, và cùng một luật chạy qua cả bốn: trợ lý tuyệt đối
+    không được báo thành công cho một việc nó chưa quan sát thấy. Bộ điều khiển từ
+    chối lệnh chuyển Eco; một phản hồi mơ hồ không được coi là xác nhận; đề cử hết
+    hạn trước khi được xác nhận; và một lần phân phối thất bại không được tính là
+    đã phân phối. **`QC-10.1` nay tự dựng được.** P39 thêm bước `vehicleRefuses` cho
+    kịch bản, nên việc bộ điều khiển từ chối là một sự kiện kịch bản khai ra chứ không
+    còn là một cờ khởi tạo — và ADR-0042 khép vòng, nên lời đồng ý của tài xế thật
+    sự tới bộ điều khiển để mà bị từ chối.
+
+    Còn lại một điều chưa dựng được: `driverResponse` có bốn giá trị — accept, reject,
+    snooze, silent — nên "mơ hồ" vẫn chưa phải một giá trị phát được (`DEBT-030`),
+    và `QC-15.1` vẫn đọc bằng mắt theo bản ghi quyết định.
+
+    '
+  durationMs: 160000
+factors:
+- key: connectivity.online
+  interp: hold
+  keys:
+  - atMs: 0
+    value: true
+- key: connectivity.dataAgeSeconds
+  interp: linear
+  keys:
+  - atMs: 0
+    value: 1
+- key: identity.tripId
+  interp: hold
+  keys:
+  - atMs: 0
+    value: chuyen-di-that-bai
+- key: motion.socPct
+  interp: linear
+  keys:
+  - atMs: 0
+    value: 24
+  - atMs: 20000
+    value: 19.5
+  - atMs: 60000
+    value: 24
+  - atMs: 75000
+    value: 19.5
+  - atMs: 110000
+    value: 24
+  - atMs: 125000
+    value: 19.5
+- key: motion.socDataAgeSeconds
+  interp: linear
+  keys:
+  - atMs: 0
+    value: 1
+  - atMs: 20000
+    value: 1
+  - atMs: 60000
+    value: 1
+  - atMs: 75000
+    value: 1
+  - atMs: 110000
+    value: 1
+  - atMs: 125000
+    value: 1
+- key: motion.vehicleInDrive
+  interp: hold
+  keys:
+  - atMs: 0
+    value: true
+- key: motion.gearState
+  interp: hold
+  keys:
+  - atMs: 0
+    value: D
+- key: motion.driveMode
+  interp: hold
+  keys:
+  - atMs: 0
+    value: NORMAL
+- key: navigation.active
+  interp: hold
+  keys:
+  - atMs: 0
+    value: true
+- key: navigation.latitude
+  interp: linear
+  keys:
+  - atMs: 0
+    value: 21.0278
+- key: navigation.longitude
+  interp: linear
+  keys:
+  - atMs: 0
+    value: 105.8342
+- key: navigation.distanceToDestinationKm
+  interp: linear
+  keys:
+  - atMs: 0
+    value: 40
+- key: navigation.dataAgeSeconds
+  interp: linear
+  keys:
+  - atMs: 0
+    value: 8
+- key: vehicleHealth.batteryHealthPct
+  interp: linear
+  keys:
+  - atMs: 0
+    value: 92
+- key: vehicleHealth.systemState
+  interp: hold
+  keys:
+  - atMs: 0
+    value: NORMAL
+- key: vehicleHealth.driveModeChangeAvailable
+  interp: hold
+  keys:
+  - atMs: 0
+    value: false
+  - atMs: 60000
+    value: true
+- key: safety.alertLevel
+  interp: hold
+  keys:
+  - atMs: 0
+    value: NONE
+- key: safety.adasState
+  interp: hold
+  keys:
+  - atMs: 0
+    value: NORMAL
+- key: interaction.assistantAvailable
+  interp: hold
+  keys:
+  - atMs: 0
+    value: true
+- key: interaction.assistantMode
+  interp: hold
+  keys:
+  - atMs: 0
+    value: BALANCED
+- key: interaction.doNotDisturb
+  interp: hold
+  keys:
+  - atMs: 0
+    value: false
+- key: interaction.inferenceConfidence
+  interp: linear
+  keys:
+  - atMs: 0
+    value: 0.96
+- key: identity.vehicleId
+  interp: hold
+  keys:
+  - atMs: 0
+    value: 22222222-2222-4222-8222-000000000001
+- key: identity.worldId
+  interp: hold
+  keys:
+  - atMs: 0
+    value: ha-noi-mac-dinh
+- key: frame.sessionEvent
+  interp: pulse
+  keys:
+  - atMs: 0
+    value: parkedSessionStarted
+- key: identity.parkedSessionId
+  interp: hold
+  keys:
+  - atMs: 0
+    value: ps-that-bai
+- key: frame.driverResponse
+  interp: pulse
+  keys:
+  - atMs: 26000
+    value: accept
+expect:
+- id: E1
+  label: QC-10.1
+  describe: Tài xế đồng ý, bộ điều khiển từ chối. Không câu nào báo Success, và bản
+    ghi mang lý do thất bại thật chứ không phải một mã chung.
+  at: 0
+  withinMs: 160000
+  reaches:
+    stage: action
+    outcome: ACTED
