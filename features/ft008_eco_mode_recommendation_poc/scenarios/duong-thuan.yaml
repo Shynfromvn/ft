@@ -1,15 +1,23 @@
 schemaVersion: 4
 meta:
   id: duong-thuan
-  title: Đường thuận — pin chạm 20% khi đang chạy, tài xế đồng ý bằng giọng nói
-  description: 'UC-01 chạy hết một lượt không nhánh lỗi. Xe đang Driving, điểm đến
-    cách 40 km, Assistant Mode = Balanced, mọi dữ liệu còn tươi. Mức pin chạm 20%;
-    trợ lý nói đúng một câu chỉ bằng giọng; tài xế xác nhận; và chỉ sau khi bộ điều
-    khiển báo Eco Mode đang hoạt động thì trợ lý mới nói là đã chuyển. Đây là kịch
-    bản mở đầu mọi buổi demo — nó đi qua đủ bảy chặng.
+  title: Đường thuận — pin chạm 20% khi đang chạy, khuyến nghị được hiển thị
+  description: 'UC-01 chạy hết một lượt không nhánh lỗi. Xe online, dữ liệu còn tươi,
+    chưa ở Eco Mode, và Session History trống. Mức pin đi qua 20%; S5 tạo đúng một
+    Candidate và hiển thị nội dung khuyến nghị. Luồng dừng ở đó — hai nút xác nhận
+    có mặt nhưng không ấn được (BA-03), nên không có câu trả lời nào và không lệnh
+    nào rời hệ thống.
+
+    Mười sáu factor của bản FT-007 đã bỏ: navigation.* (Navigation ngoài phạm vi),
+    safety.* (Safety/ADAS ngoài phạm vi), phone.* (cuộc gọi ngoài phạm vi),
+    interaction.* (Assistant Mode ngoài phạm vi), vehicleHealth.systemState (không
+    còn là cổng), motion.vehicleInDrive và motion.gearState (không cổng nào đọc sau
+    khi parked_and_left bị gỡ), frame.sessionEvent và identity.parkedSessionId
+    (không còn khái niệm phiên đỗ), và frame.driverResponse — chủ dự án chốt
+    2026-09-08: POC không đặt tín hiệu cho phản hồi tài xế.
 
     '
-  durationMs: 90000
+  durationMs: 60000
 factors:
 - key: connectivity.online
   interp: hold
@@ -26,6 +34,14 @@ factors:
   keys:
   - atMs: 0
     value: chuyen-di-duong-thuan
+- key: identity.vehicleId
+  interp: hold
+  keys:
+  - atMs: 0
+    value: xe-mac-dinh
+# Cùng bốn mốc như bản FT-007, giữ nguyên có chủ ý: `motion.socPct` nội suy tuyến
+# tính nên nó cắt ngưỡng ở giây 43, không ở mốc keyframe. Đổi hình sẽ làm mốc neo
+# trong `expect` bên dưới thôi đúng.
 - key: motion.socPct
   interp: linear
   keys:
@@ -42,122 +58,11 @@ factors:
   keys:
   - atMs: 0
     value: 1
-  - atMs: 30000
-    value: 1
-  - atMs: 45000
-    value: 1
-  - atMs: 55000
-    value: 1
-- key: motion.vehicleInDrive
-  interp: hold
-  keys:
-  - atMs: 0
-    value: true
-- key: motion.gearState
-  interp: hold
-  keys:
-  - atMs: 0
-    value: D
 - key: motion.driveMode
   interp: hold
   keys:
   - atMs: 0
     value: NORMAL
-- key: navigation.active
-  interp: hold
-  keys:
-  - atMs: 0
-    value: true
-- key: navigation.latitude
-  interp: hold
-  keys:
-  - atMs: 0
-    value: 21.0278
-- key: navigation.longitude
-  interp: hold
-  keys:
-  - atMs: 0
-    value: 105.8342
-- key: navigation.distanceToDestinationKm
-  interp: hold
-  keys:
-  - atMs: 0
-    value: 40
-- key: navigation.dataAgeSeconds
-  interp: hold
-  keys:
-  - atMs: 0
-    value: 8
-- key: vehicleHealth.systemState
-  interp: hold
-  keys:
-  - atMs: 0
-    value: NORMAL
-- key: safety.alertLevel
-  interp: hold
-  keys:
-  - atMs: 0
-    value: NONE
-- key: safety.adasState
-  interp: hold
-  keys:
-  - atMs: 0
-    value: NORMAL
-- key: phone.connected
-  interp: hold
-  keys:
-  - atMs: 0
-    value: true
-- key: phone.callActive
-  interp: hold
-  keys:
-  - atMs: 0
-    value: false
-- key: interaction.assistantAvailable
-  interp: hold
-  keys:
-  - atMs: 0
-    value: true
-- key: interaction.assistantMode
-  interp: hold
-  keys:
-  - atMs: 0
-    value: BALANCED
-- key: interaction.doNotDisturb
-  interp: hold
-  keys:
-  - atMs: 0
-    value: false
-- key: interaction.inferenceConfidence
-  interp: hold
-  keys:
-  - atMs: 0
-    value: 0.96
-- key: identity.vehicleId
-  interp: hold
-  keys:
-  - atMs: 0
-    value: 22222222-2222-4222-8222-000000000001
-- key: identity.worldId
-  interp: hold
-  keys:
-  - atMs: 0
-    value: ha-noi-mac-dinh
-- key: frame.sessionEvent
-  interp: pulse
-  keys:
-  - atMs: 0
-    value: parkedSessionStarted
-- key: identity.parkedSessionId
-  interp: hold
-  keys:
-  - atMs: 0
-    value: ps-duong-thuan
-- key: frame.driverResponse
-  interp: pulse
-  keys:
-  - atMs: 50000
-    value: accept
 expect:
 - id: E1
   label: QC-01.1
@@ -171,13 +76,14 @@ expect:
     outcome: ACTED
     reasonCode: soft_threshold_crossed
 - id: E2
-  label: QC-08.1
-  describe: Chưa xác nhận thì chưa có lệnh nào rời hệ thống. Cửa sổ đóng **trước**
-    giây 50 — đó là lúc tài xế trả lời, và một khẳng định 'chưa xác nhận' đặt sau
-    câu trả lời là một khẳng định không bao giờ sai.
-  at: 44000
-  forMs: 5000
+  label: QC-03.1
+  describe: 'Sau khi khuyến nghị được hiển thị, không lệnh nào rời hệ thống. Đây là
+    khác biệt lớn nhất với FT-007: ở đó tài xế trả lời ở giây 50 và một lệnh đổi chế
+    độ được gửi xuống xe. POC không có đường ấy — §Phạm vi loại bỏ thực thi ECU, và
+    `publicResult.allowedFields` không khai `actionsToExecute`.'
+  at: 46000
+  forMs: 14000
   absent:
     event: action
     where:
-      featureId: FT-007
+      featureId: FT-008
