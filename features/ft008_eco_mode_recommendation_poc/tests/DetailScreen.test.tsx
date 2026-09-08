@@ -1,14 +1,21 @@
 /**
- * Màn hình chi tiết FT-007 — bốn ràng buộc của tài liệu BA chính thức.
+ * Màn hình chi tiết của gói POC — một ràng buộc, `BA-03`.
  *
  * Test bằng một object props thường: không provider, không mock fetch, không
  * `EventSource` giả. Đó là điều ADR-0015 mua bằng việc trao *dữ liệu và
  * callback* thay vì *hook và store*, và bài test này là chỗ thấy được nó.
  *
- * Phủ `QC-06.1` · `QC-07.1` · `QC-07.2` · `QC-13.1` · `QC-22.1` · `QC-14.2`.
+ * **Sáu bài của `ft007_battery_status_recommendation` không có ở đây**, và cả
+ * sáu đi cùng ràng buộc chúng kiểm: Parked hiện Answer Card, Driving không có
+ * phần tử tương tác, Parked→Driving gỡ UI, chạm CTA gửi câu trả lời, chỉ báo
+ * thành công khi backend nói thành công, và cửa sổ sáu giây. `ba.md` của gói
+ * này đưa cả bốn ràng buộc ấy ra ngoài phạm vi.
+ *
+ * Không có `vi.useFakeTimers()` ở đây, và đó là một điều đáng nói chứ không
+ * phải một chỗ bỏ sót: màn hình không đặt hẹn giờ nào, nên không có gì để tua.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, render, screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { CatalogEntry } from "@/entities/feature";
 import type { FeatureScreenProps } from "@/entities/feature-screen";
@@ -19,22 +26,27 @@ import DetailScreen from "../frontend/DetailScreen";
 const TURN = "11111111-1111-4111-8111-111111111111";
 const CANDIDATE = "c0ffee00c0ffee00c0ffee00c0ffee00";
 
-function recommendation(): StreamEvent {
+/** Câu nguyên văn `ba.md` `Bước 3` — cùng chuỗi `test_service.py` ghim ở backend. */
+const MESSAGE =
+  "Pin còn 20%. Chuyển sang Eco Mode có thể giúp tiết kiệm pin hơn. " +
+  "Bạn có đồng ý chuyển không?";
+
+function recommendation(overrides: Record<string, unknown> = {}): StreamEvent {
   return {
     name: "action",
     id: "1",
     payload: {
       turnId: TURN,
       candidateId: CANDIDATE,
-      featureId: "FT-007",
+      featureId: "FT-008",
       kind: "SUGGEST_ECO",
       payload: {
-        voiceLine: "Pin còn 20%. Chuyển sang chế độ tiết kiệm nhé?",
-        message: "Pin 20% · Chuyển chế độ tiết kiệm?",
-        choices: ["Đồng ý", "Bỏ qua"],
-        responseWindowSeconds: 6,
+        message: MESSAGE,
+        choices: ["Đồng ý", "Không đồng ý"],
+        choicesInteractive: false,
+        ...overrides,
       },
-      occurredAt: "2026-08-26T09:00:00Z",
+      occurredAt: "2026-09-08T09:00:00Z",
     },
   };
 }
@@ -43,31 +55,29 @@ function props(overrides: Partial<FeatureScreenProps> = {}): FeatureScreenProps 
   return {
     // Qua `CatalogEntry.parse`, không phải một object literal: nó **kiểm** luôn
     // điều ADR-0079 điều 5 hứa — một catalog không khai `carScreen` vẫn parse
-    // được và cho ba danh sách rỗng. Viết tay ba danh sách ấy sẽ làm fixture
-    // xanh mà không chứng minh gì, và lệch đi lúc hình dạng khối đổi.
+    // được và cho ba danh sách rỗng.
     feature: CatalogEntry.parse({
-      id: "FT-007",
-      name: "Khuyến nghị chế độ vận hành theo trạng thái pin",
+      id: "FT-008",
+      name: "Khuyến nghị chuyển Eco Mode khi pin thấp (POC)",
       description: "",
-      status: "Active",
-      lastTested: "2026-08-26",
-      frontend: { kind: "custom", componentKey: "BatteryStatusRecommendationDetail" },
+      status: "Draft",
+      lastTested: "",
+      frontend: { kind: "custom", componentKey: "EcoModeRecommendationPocDetail" },
       runtime: {
-        stateDomains: ["motion", "navigation", "interaction"],
-        events: ["DRIVER_RESPONDED"],
-        frontendProjection: "ft007",
+        // Hai miền, khớp `runtime.stateDomains` của `feature.yaml`. Danh sách
+        // `events` rỗng vì không sự kiện nào định tuyến vào tính năng này.
+        stateDomains: ["motion", "connectivity"],
+        events: [],
+        frontendProjection: "ft008",
       },
     }),
-    state: { motion: { socPct: 20, vehicleInDrive: false, driveMode: "NORMAL" } },
+    state: { motion: { socPct: 20, driveMode: "NORMAL" } },
     events: [recommendation()],
-    respond: vi.fn().mockResolvedValue({ resolvedPlan: { message: "Đã chuyển sang Eco Mode." } }),
     isLoading: false,
     slot: "inCarScreen",
     ...overrides,
   };
 }
-
-const driving = { motion: { socPct: 20, vehicleInDrive: true, driveMode: "NORMAL" } };
 
 function renderScreen(overrides: Partial<FeatureScreenProps> = {}) {
   return render(
@@ -77,91 +87,105 @@ function renderScreen(overrides: Partial<FeatureScreenProps> = {}) {
   );
 }
 
-describe("FT-007 · màn hình chi tiết", () => {
-  it("QC-07.1 · Parked thì hiện Answer Card với hai CTA tiếng Việt", () => {
+describe("POC · màn hình chi tiết", () => {
+  it("Bước 4 · hiện câu hỏi và hai nút xác nhận", () => {
     renderScreen();
 
-    expect(screen.getByTestId("answer-card")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Chuyển sang Eco Mode" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Để sau" })).toBeInTheDocument();
-    expect(screen.getByText("Pin 20% · Chuyển chế độ tiết kiệm?")).toBeInTheDocument();
+    expect(screen.getByTestId("recommendation-card")).toBeInTheDocument();
+    expect(screen.getByText(MESSAGE)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Đồng ý" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Không đồng ý" })).toBeInTheDocument();
   });
 
-  it("QC-06.1 · Driving thì không có phần tử tương tác nào", () => {
-    renderScreen({ state: driving });
-
-    expect(screen.queryByTestId("answer-card")).not.toBeInTheDocument();
-    expect(screen.queryAllByRole("button")).toHaveLength(0);
-    expect(screen.getByRole("status")).toHaveTextContent("chỉ bằng giọng nói");
-  });
-
-  it("QC-13.1 · QC-22.1 · Parked chuyển sang Driving thì thẻ biến mất, không thu nhỏ", () => {
-    const { rerender } = render(
-      <TestIntlProvider>
-        <DetailScreen {...props()} />
-      </TestIntlProvider>,
-    );
-    expect(screen.getByTestId("answer-card")).toBeInTheDocument();
-
-    rerender(
-      <TestIntlProvider>
-        <DetailScreen {...props({ state: driving })} />
-      </TestIntlProvider>,
-    );
-
-    // Biến mất **hẳn**, cùng một lượt render với thay đổi trạng thái. Đo mốc
-    // 100 ms trong một unit test là đo bộ đếm giờ của máy chạy test, không đo
-    // hành vi; thứ đo được và đúng là: gỡ UI là một lần unmount đồng bộ, không
-    // phải một hoạt ảnh, và không còn một thẻ nhỏ nào ở lại.
-    expect(screen.queryByTestId("answer-card")).not.toBeInTheDocument();
-    expect(screen.queryAllByRole("button")).toHaveLength(0);
-  });
-
-  it("QC-07.2 · chạm CTA gửi đúng một câu trả lời, kênh touch", async () => {
+  it("BA-03 · hai nút có mặt nhưng không ấn được", async () => {
     const user = userEvent.setup();
-    const respond = vi.fn().mockResolvedValue({ resolvedPlan: { message: "Đã chuyển sang Eco Mode." } });
-    renderScreen({ respond });
+    renderScreen();
 
-    await user.click(screen.getByRole("button", { name: "Chuyển sang Eco Mode" }));
+    const accept = screen.getByRole("button", { name: "Đồng ý" });
+    const decline = screen.getByRole("button", { name: "Không đồng ý" });
 
-    expect(respond).toHaveBeenCalledTimes(1);
-    expect(respond.mock.calls[0]?.[0]).toMatchObject({
-      candidateId: CANDIDATE,
-      outcome: "accept",
-      channel: "touch",
-    });
-    expect(await screen.findByText("Đã chuyển sang Eco Mode.")).toBeInTheDocument();
+    // Ba khẳng định, ba người đọc khác nhau. `toBeDisabled` là điều chuột thấy;
+    // `aria-disabled` là điều trình đọc màn hình nghe được — một nút `disabled`
+    // trơn bị bỏ qua khi duyệt, mà `Bước 4` đòi nút phải **có mặt**.
+    expect(accept).toBeDisabled();
+    expect(decline).toBeDisabled();
+    expect(accept).toHaveAttribute("aria-disabled", "true");
+
+    // Và điều người dùng thấy: bấm không làm gì cả. Nếu ai đó gỡ `disabled`
+    // nhưng quên gắn handler, hai khẳng định trên đỏ trước — bài này là lớp
+    // cuối, cho trường hợp ngược lại.
+    await user.click(accept);
+    expect(screen.getByTestId("recommendation-card")).toBeInTheDocument();
   });
 
-  it("QC-07.2 · chỉ báo thành công khi backend nói thành công", async () => {
-    const user = userEvent.setup();
-    const respond = vi.fn().mockRejectedValue(new Error("cổng xe từ chối"));
-    renderScreen({ respond });
+  it("BA-03 · nói ra một lần rằng nút chưa dùng được", () => {
+    renderScreen();
 
-    await user.click(screen.getByRole("button", { name: "Chuyển sang Eco Mode" }));
+    // Không có dòng này thì hai nút xám trông như một lỗi giao diện thay vì
+    // một trạng thái được thiết kế — và người xem demo là người đọc nó.
+    expect(screen.getByRole("status")).toBeInTheDocument();
+  });
 
-    expect(await screen.findByText("Chưa chuyển được sang Eco Mode.")).toBeInTheDocument();
+  it("trạng thái tương tác đọc từ payload, không viết cứng ở màn hình", async () => {
+    // Ghim đường dẫn của luật, không phải giá trị của nó. `BA-03` sống ở
+    // `service.public_result()`; nếu ai đó hằng số hoá `disabled` ở màn hình,
+    // bài này đỏ vì payload nói `true` mà nút vẫn xám.
+    renderScreen({ events: [recommendation({ choicesInteractive: true })] });
+
+    expect(screen.getByRole("button", { name: "Đồng ý" })).toBeEnabled();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("chưa có khuyến nghị nào thì không có thẻ, không có nút", () => {
+    renderScreen({ events: [] });
+
+    expect(screen.queryByTestId("recommendation-card")).not.toBeInTheDocument();
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
+  });
+
+  it("payload thiếu trường thì fail-closed, không dựng giá trị mặc định", () => {
+    // `choicesInteractive` vắng mặt đọc thành `false`. Chiều mặc định là điều
+    // đáng ghim: nút không bấm được là trạng thái an toàn, nút bấm được mà
+    // không ai xử lý thì không.
+    renderScreen({ events: [recommendation({ choicesInteractive: undefined })] });
+
+    expect(screen.getByRole("button", { name: "Đồng ý" })).toBeDisabled();
+  });
+
+  it("mức pin và chế độ lái hiển thị từ state", () => {
+    renderScreen();
+
+    expect(screen.getByText("20%")).toBeInTheDocument();
+    expect(screen.getByText("NORMAL")).toBeInTheDocument();
+  });
+
+  it("miền motion chưa tới thì hiện 'không biết', không hiện 0%", () => {
+    // Khác nhau giữa "chưa nhận được số đo" và "pin cạn" là khác biệt mà cả
+    // `runtime.py` lẫn `projection.ts` đều fail-closed để giữ. Một màn hình
+    // hiện `0%` ở đây sẽ báo động về một chuyện chưa ai quan sát được.
+    renderScreen({ state: {} });
+
+    expect(screen.queryByText("0%")).not.toBeInTheDocument();
   });
 });
 
-describe("FT-007 · cửa sổ trả lời", () => {
-  beforeEach(() => vi.useFakeTimers());
-  afterEach(() => vi.useRealTimers());
+describe("POC · ba panel", () => {
+  it("panel input chỉ hiển thị, không có nút", () => {
+    renderScreen({ slot: "input" });
 
-  it("QC-14.2 · 6 giây không trả lời thì tương tác kết thúc", async () => {
-    const respond = vi.fn().mockResolvedValue({});
-    renderScreen({ respond });
-    expect(screen.getByTestId("answer-card")).toBeInTheDocument();
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
+    expect(screen.getByText("20%")).toBeInTheDocument();
+  });
 
-    // Không dùng `waitFor` ở đây: nó tự đặt hẹn giờ, và với đồng hồ giả thì
-    // hẹn giờ đó không bao giờ tới — bài test treo cho tới lúc hết hạn vì lý do
-    // không liên quan gì tới thứ đang kiểm. `act` bất đồng bộ đã xả hết
-    // microtask, nên khẳng định thẳng là đủ và đọc rõ hơn.
-    await act(async () => {
-      vi.advanceTimersByTime(6_000);
-    });
+  it("panel output hiện nội dung khuyến nghị", () => {
+    renderScreen({ slot: "output" });
 
-    expect(screen.queryByTestId("answer-card")).not.toBeInTheDocument();
-    expect(respond.mock.calls[0]?.[0]).toMatchObject({ outcome: "timeout", channel: "none" });
+    expect(screen.getByText(MESSAGE)).toBeInTheDocument();
+  });
+
+  it("panel output chưa có gì thì hiện trạng thái rỗng", () => {
+    renderScreen({ slot: "output", events: [] });
+
+    expect(screen.queryByText(MESSAGE)).not.toBeInTheDocument();
   });
 });
