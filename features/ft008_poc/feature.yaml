@@ -1,0 +1,341 @@
+# ══════════════════════════════════════════════════════════════════════════
+#  FT-008 — Khuyến nghị chuyển Eco Mode khi pin thấp (POC rút gọn)
+#
+#  ── Quan hệ với FT-007 ──────────────────────────────────────────────────
+#  Gói này KHÔNG phải một biến thể của `ft007_battery_status_recommendation`.
+#  Nó là một tính năng riêng, chạy trên một `ba.md` riêng — bản requirement
+#  UC-01 v0.1 ngày 3 Sep 2026, hẹp hơn hẳn: không Navigation, không Safety/
+#  ADAS, không cuộc gọi, không Assistant Mode, không phản hồi người dùng,
+#  không thực thi ECU. Luồng dừng lại ở chỗ Candidate được hiển thị.
+#
+#  Không import chéo sang gói kia (bất biến I4) và không dùng chung
+#  `memory.category` — hai tính năng dùng chung một namespace trí nhớ là hai
+#  tính năng đọc được bản ghi của nhau.
+#
+# ══════════════════════════════════════════════════════════════════════════
+
+schemaVersion: 2
+
+identity:
+  featureId: FT-008
+  slug: eco_mode_recommendation_poc
+  name: "Khuyến nghị chuyển Eco Mode khi pin thấp (POC)"
+  description: >
+    Khi mức pin đi qua ngưỡng 20% và chưa có khuyến nghị Eco nào đang chờ, trợ
+    lý dựng một đề cử chuyển sang chế độ tiết kiệm và hiển thị nó cho tài xế
+    xem. Bản POC dừng ở đó: hai nút xác nhận có mặt nhưng không bấm được, và
+    không có lệnh nào gửi xuống xe.
+  # `false` cho tới khi mọi gate xanh VÀ ID thật đã được cấp. Bước 6 của vòng
+  # đời làm bằng tay có lý do: một scaffold chưa ai điền mà chạy được sẽ đọc
+  # `TODO` lên trước mặt vendor.
+  enabled: false
+  status: Draft
+  lastTested: ""
+
+handlers:
+  evaluateModel: "features.ft008_eco_mode_recommendation_poc.backend.schemas:EvaluateRequest"
+  respondModel: "features.ft008_eco_mode_recommendation_poc.backend.schemas:RespondRequest"
+  evaluate: "features.ft008_eco_mode_recommendation_poc.backend.handlers:evaluate"
+  # `respond` KHAI NHƯNG KHÔNG CÓ ĐƯỜNG VÀO. `ba.md` §Phạm vi loại bỏ phản
+  # hồi Voice/Touch, timeout phản hồi và toàn bộ lifecycle sau khi Candidate
+  # được hiển thị — nên `routing.triggers` rỗng và `agent.operations` không
+  # có `RESPOND`. Không sự kiện nào định tuyến tới hàm này.
+  #
+  # Nó vẫn ở đây vì `schemaVersion: 2` đòi bốn trường `handlers.*`; template
+  # khai đủ bốn ngay cả khi `agent.enabled: false`. Nếu `make feature-check`
+  # cho phép `null`, XOÁ cả hai dòng `respond*` và xoá luôn `RespondRequest`
+  # khỏi `schemas.py` — một hàm không ai gọi được là code chết, và repo này
+  # gỡ code chết chứ không comment nó lại.
+  respond: "features.ft008_eco_mode_recommendation_poc.backend.handlers:respond"
+  ingressMode: canonical
+
+agent:
+  enabled: true
+  adapter: "features.ft008_eco_mode_recommendation_poc.backend.agent:EcoModeRecommendationPocAdapter"
+  # Một, không phải hai. Gói gốc khai `RESPOND` vì `BA-23` của nó đòi phân
+  # biệt từ chối với không trả lời. `ba.md` POC không có yêu cầu ấy: nó không
+  # mô tả bất kỳ phản hồi nào của tài xế.
+  operations: [EVALUATE]
+  interactionStages: [recommendation]
+
+routing:
+  # Một đường vào, một câu hỏi.
+  #
+  # `watches` — nền tảng canh tín hiệu hộ và chỉ đánh thức khi nó ĐI QUA mốc.
+  #
+  # Số 20 không có ở đây và sẽ không bao giờ có: brief nói canh tín hiệu nào,
+  # `rules.py` giữ con số, `spec.py` nối hai bên (ADR-0013).
+  watches:
+    - signal: motion.socPct
+      direction: FALLING
+      operation: EVALUATE
+      strategyId: ECO_MODE_RECOMMENDATION_POC
+      ruleId: route.eco-mode-poc.ft008.v1
+      rationaleCodes: [BATTERY_STATUS_CONTEXT_AVAILABLE]
+      # Ba miền, không phải bốn. `navigationState` và `interactionState` đi
+      # cùng Navigation và Assistant Mode ra khỏi phạm vi.
+      #
+      # `connectivityState` CÓ ở đây trong khi gói gốc không khai nó — và đó
+      # là một sửa lỗi, không phải một khác biệt: `Preconditions §2` đòi
+      # Online là một cổng, `service.py` đọc trường ấy, nên nó phải được xin.
+      # Một tính năng đọc trường nó chưa từng xin là một tính năng hỏng khi
+      # trường đó thôi được gửi. Kiểm lại bằng `make feature-check` — nếu
+      # checker không nhận tên này, hỏi nền tảng thay vì bỏ dòng đi.
+      requiredPayloadObjects: [batteryState, vehicleState, connectivityState]
+
+  # Rỗng, và đó là con số đúng. Câu trả lời của tài xế không tồn tại trong
+  # `ba.md` POC — Bước 4 kết thúc ở "hiển thị giao diện", và hai nút xác nhận
+  # được mô tả tường minh là **không ấn được**. Một trigger `DRIVER_RESPONDED`
+  # ở đây sẽ là một đường vào cho một sự kiện không màn hình nào phát ra.
+  triggers: []
+
+  thresholdProvider: "features.ft008_eco_mode_recommendation_poc.backend.rules:watch_thresholds"
+
+engine:
+  localPreferenceMining: false
+  recordsDeliveredFeedback: false
+  # `none`, không phải `reject-stale`: không có xác nhận nào để mà kiểm tra độ
+  # tươi. Gói gốc cần `reject-stale` vì tài xế đồng ý lúc pin 19% mà câu trả
+  # lời tới khi pin đã 4% thì hành động theo nó là sai — POC không nhận câu
+  # trả lời nào.
+  confirmationFreshness:
+    mode: none
+    deliveredFeedbackStage: null
+  # ── CHƯA CHỐT ────────────────────────────────────────────────────────────
+  # Trường này BẮT BUỘC với mọi tính năng khai `routing.watches`, nhưng
+  # `ba.md` POC không đặt tên chủ đề nào: nó không có `BR-02` (phân loại
+  # Direct-impact / Topic) như bản gốc. Giá trị dưới đây kế thừa từ
+  # requirement nguồn, không phải từ tài liệu POC.
+  #
+  # Hỏi BA: POC có giữ chủ đề "Energy and Charging" không? Nếu có, thêm một
+  # dòng vào `ba.md` để chỗ này có nguồn; nếu không, xin một chủ đề khác.
+  recommendationTopic: Energy and Charging
+  # Để trống: `ba.md` POC không nói đề cử sống bao lâu. `DEFAULT_LIFETIME` của
+  # nền tảng áp dụng, và một con số bịa ra ở đây sẽ trông như một con số ai đó
+  # phê duyệt.
+  candidateLifetimeSeconds: null
+
+publicResult:
+  mode: allowlist
+  # Bảy trường, không phải chín. Hai trường bị gỡ, mỗi cái một lý do:
+  #
+  # `actionsToExecute` — đó là MỆNH LỆNH gửi xuống xe ("gửi SET_DRIVE_MODE
+  # với tham số ECO"). `ba.md` §Phạm vi loại "thực thi lệnh ECU" và "xác nhận
+  # ECU" ra ngoài, nên POC không được phép phát ra một mệnh lệnh nào.
+  #
+  # `confirmation` — hợp đồng xác nhận (bắt buộc xác nhận, cho phép voice,
+  # cho phép touch khi Parked, cửa sổ 6 giây) chỉ có nghĩa nếu có một đường
+  # nhận xác nhận. POC không có.
+  #
+  # `recommendedActions` thì Ở LẠI, và khác biệt ấy có chủ ý: nó là LỜI KHAI Ý
+  # ĐỊNH ("đề cử này khuyến nghị driving_mode thành ECO"), đúng dòng "Hành
+  # động khuyến nghị: Chuyển chế độ lái sang Eco" của `Bước 3`. Khai một ý
+  # định không phải là ra một lệnh.
+  #
+  # `eventCode` ở lại vì `Bước 3` đòi "Mã sự kiện" trong Candidate.
+  allowedFields: [ok, featureId, resolvedPlan, recommendedActions, eventCode,
+                  final, feedback]
+
+runtime:
+  # Hai miền — đúng hai miền `runtime.py` thật sự đọc sau khi thu hẹp. Khai
+  # báo một miền là một tuyên bố về quyền đọc, nên khai thừa là xin quyền
+  # không dùng đến.
+  #
+  # Năm miền đã gỡ, và mỗi cái theo một dòng của `ba.md` §Phạm vi:
+  #   `navigation`    — Navigation ngoài phạm vi
+  #   `interaction`   — Assistant Mode ngoài phạm vi
+  #   `phone`         — cuộc gọi ngoài phạm vi
+  #   `safety`        — Safety/ADAS ngoài phạm vi
+  #   `vehicleHealth` — `systemState` không còn là cổng nào của POC
+  stateDomains: [motion, connectivity]
+  # Rỗng vì `routing.triggers` rỗng. Khối này phải chứa mọi `trigger.eventType`
+  # và không còn cái nào.
+  events: []
+  projection: "features.ft008_eco_mode_recommendation_poc.backend.runtime:project_runtime"
+  frontendProjection: ft008
+
+# Hai đại lượng tài xế nhìn thấy trên tấm kính, cộng một chấm mạng (ADR-0079).
+#
+# ── CHƯA CHỐT ──────────────────────────────────────────────────────────────
+# `ba.md` POC để trống cả §9.1 Voice UX lẫn §9.2 Visual UX, trong khi `BA-03`
+# lại trỏ vào "Bước 4 / UI/UX 9.2". Một mã yêu cầu trỏ vào một mục rỗng thì QC
+# không viết được tiêu chí cho nó.
+#
+# Hai ô dưới đây là suy luận, không phải trích dẫn: chúng là đúng hai đại
+# lượng POC thật sự đọc để ra quyết định. Hai ô của gói gốc đã gỡ —
+# `motion.remainingRangeKm` (không cổng nào dùng) và `vehicleHealth.systemState`
+# (miền đã ra khỏi `stateDomains`).
+#
+# `label` là khoá i18n, không phải chuỗi hiển thị.
+carScreen:
+  tiles:
+    - factor: motion.socPct
+      label: batteryLevel
+      format: percent
+    - factor: motion.driveMode
+      label: driveMode
+      format: text
+  header:
+    - factor: connectivity.online
+      label: online
+      format: onlineDot
+  footer: []
+
+memory:
+  enabled: true
+  # Namespace RIÊNG, không dùng lại `battery_status` của FT-007. Hai tính năng
+  # dùng chung một category là hai tính năng đọc được bản ghi của nhau, và
+  # `duplicateCandidate` của bên này sẽ chặn Candidate của bên kia.
+  category: eco_mode_poc
+  # ── CHƯA CHỐT ────────────────────────────────────────────────────────────
+  # `ba.md` POC gọi kho này là "Session History" và nói nó trả lời đúng một
+  # câu: *đã có một khuyến nghị Eco đang chờ phản hồi hoặc đang được xử lý
+  # chưa* (`Bước 2`/`AC-02`). Nó KHÔNG nói phạm vi của "đang chờ" — theo
+  # chuyến, theo phiên, hay theo hồ sơ.
+  #
+  # `profile-vehicle-trip` là phạm vi hẹp nhất trả lời được câu ấy, và hẹp là
+  # hướng an toàn: một phạm vi rộng hơn sẽ chặn nhiều hơn mức tài liệu đòi.
+  # Hỏi BA để chốt, rồi ghi câu trả lời vào `ba.md` chứ không vào đây.
+  scope: profile-vehicle-trip
+  recallCategories: [eco_mode_poc]
+  recommendationDomains: [vehicle_operation]
+  preferencePatternActions: []
+  recommendationStateRequired: false
+  writerHook: null
+  recommendationHook: "features.ft008_eco_mode_recommendation_poc.backend.memory:transitions"
+  publicProjectionHook: null
+  preferenceContextHook: null
+  preferenceProjectionHook: null
+  recommendationStateProjectionHook: "features.ft008_eco_mode_recommendation_poc.backend.memory:recommendation_state_read_projection"
+  localEvidenceHook: null
+
+frontend:
+  # Màn hình thật, không phải vỏ generic. Nhưng nó làm ÍT hơn hẳn màn hình của
+  # FT-007: `Bước 4` chỉ đòi hiển thị câu hỏi và hai nút xác nhận **ở trạng
+  # thái không thao tác được** (`BA-03`). Bốn ràng buộc màn hình gốc thực hiện
+  # — `AC-06` Driving chỉ Voice, `AC-07` Parked có Answer Card, `AC-13`/`NFR-06`
+  # gỡ UI khi chuyển sang Driving, `AC-14` cửa sổ 6 giây — đều ngoài phạm vi
+  # POC và không được mang sang.
+  #
+  # `componentKey` là một KHOÁ, không phải đường dẫn import, và nó phải khác
+  # khoá của FT-007: hai tính năng cùng khoá thì registry sinh ra chỉ giữ được
+  # một.
+  kind: custom
+  componentKey: EcoModeRecommendationPocDetail
+
+docs:
+  # Trong gói, không ở `docs/` gốc repo (P14). Xoá tính năng là xoá cả yêu cầu
+  # nghiệp vụ của nó — bất biến I1 theo nghĩa đen.
+  #
+  # Ba đường dẫn này TRỎ VÀO CHÍNH GÓI NÀY. Bản `cp` ban đầu để chúng trỏ sang
+  # `features/ft007_battery_status_recommendation/docs/...`, nghĩa là `ba.md`
+  # của POC không được file nào đọc tới và `docs-check` kiểm tài liệu của tính
+  # năng khác.
+  baDoc: features/ft008_eco_mode_recommendation_poc/docs/ba.md
+  qcDoc: features/ft008_eco_mode_recommendation_poc/docs/qa-qc.md
+  sequenceDoc: features/ft008_eco_mode_recommendation_poc/docs/sequence.md
+  # Ba, không phải bảy. Bốn kịch bản của FT-007 mất lý do tồn tại cùng lúc với
+  # các cổng chúng kiểm:
+  #   `chiem-quyen`    — Safety/cuộc gọi chiếm quyền, cả hai ngoài phạm vi
+  #   `doi-lo-trinh`   — vế "lộ trình thay đổi" của Trigger, POC không có
+  #   `that-bai`       — ECU từ chối, thực thi ngoài phạm vi
+  #   `vong-khep-kin`  — đủ vòng có phản hồi, phản hồi ngoài phạm vi
+  #
+  # Ba cái giữ lại phải được CẮT GỌN, không mang nguyên: chúng đang khai các
+  # factor `navigation.*`, `phone.*`, `safety.*` mà gói này không còn xin.
+  #
+  # `docs-check.sh §4` kiểm hai chiều — file thừa ở đây và file thừa dưới
+  # `scenarios/` đều đỏ.
+  demoScenarios:
+    - duong-thuan.yaml
+    - im-lang.yaml
+    - pin-tu-tut.yaml
+
+# ── Factor tính năng này ĐỌC, và độ tươi nó đòi ───────────────────────────
+#
+# Hai, không phải sáu. Bốn dòng `navigation.*` ra đi cùng Navigation.
+#
+# `freshness` là MÃ, không phải con số: con số sống ở `docs/ba.md` và đổi ở đó.
+#
+# ── CHƯA CHỐT — quan trọng nhất trong file này ──────────────────────────────
+# `NFR-01` của `ba.md` POC nói *"S5 lấy dữ liệu SoC: 3 phút một lần"*. Đó là
+# một CHU KỲ LẤY, không phải một TRẦN TUỔI. Nhưng `Preconditions §2` lại đòi
+# "dữ liệu SoC và chế độ lái phải đáp ứng chính sách độ tươi quy định trong
+# bảng NFR" — và bảng NFR không có chính sách nào như thế.
+#
+# Nghĩa là hằng `SOC_MAX_AGE_SECONDS` trong `rules.py` hiện KHÔNG CÓ NGUỒN
+# trong tài liệu POC. Xem `budgets:` bên dưới để biết con số tạm và vì sao.
+# Đây là câu hỏi phải gửi BA trước khi bật tính năng.
+factors:
+  - key: motion.socPct
+    freshness: NFR-01
+    strategy: latest
+  - key: motion.socDataAgeSeconds
+    freshness: NFR-01
+    strategy: latest
+
+# ── Trần latency tính năng này cam kết ────────────────────────────────────
+#
+# Hai dòng, không phải sáu. Đây là **nhà duy nhất** của ngân sách latency
+# trong repo: nền tảng giữ tên chặng và mã, con số giây sống ở đây (ADR-0056).
+#
+# Đẳng thức `NFR-02 + NFR-03 + NFR-04 = NFR-05` của gói gốc KHÔNG áp dụng ở
+# đây: bảng NFR POC chỉ có NFR-01, NFR-02 và NFR-04 — không có NFR-03, không
+# có NFR-05, và `NFR-04` của POC là một chỉ số **độ chính xác**, không phải độ
+# trễ, nên nó không có dòng `budgets:` nào. Kiểm lại `spec/budgets.py` có nổ
+# khi thiếu span cha không; nếu có, đó là dấu hiệu bảng NFR cần đánh số lại
+# liền mạch chứ không phải dấu hiệu file này thiếu dòng.
+#
+# ── CHƯA CHỐT ────────────────────────────────────────────────────────────
+# `NFR-01` dưới đây mang **10.0**, con số kế thừa từ requirement nguồn, không
+# phải con số `ba.md` POC viết ra (xem khối `factors:`). Chọn con số chặt hơn
+# là hướng an toàn — cùng lối xử lý `DEBT-173` đã dùng cho vế Navigation của
+# gói gốc — nhưng nó vẫn là một con số không tài liệu nào phê duyệt, và dòng
+# này là chỗ điều đó được nói ra. Khi BA trả lời, sửa ở `ba.md` trước.
+budgets:
+  - nfr: NFR-01
+    span: telemetry.freshness
+    budgetS: 10.0
+  - nfr: NFR-02
+    span: s5.decide
+    budgetS: 2.5
+
+# ── điều kiện kích hoạt tính năng này sở hữu ──────────────────────────────
+#
+# Một, không phải ba.
+#
+# `parked_and_left` đã gỡ: POC không có khái niệm phiên đỗ, và không cổng nào
+# của nó đọc `gear`/`session`.
+#
+# `battery_low_on_new_route` đã gỡ: nó là vế thứ hai của Trigger bản gốc —
+# *"một chuyến đi mới bắt đầu / lộ trình thay đổi trong khi SoC đã ở mức
+# ≤20%"*. `ba.md` POC §3 chỉ còn một vế, không có chữ "HOẶC". Cùng lúc gỡ
+# `_NEW_ROUTE_CONDITION`, `_NEW_ROUTE_REASON` và nhánh `woken_by` trong
+# `service.py`.
+#
+# Không con số nào ở đây, cùng luật với `watches`: `thresholdProvider` giữ
+# ngưỡng.
+conditions:
+  - id: battery_low
+    # **CLOUD, không EDGE** — lần cắt ngưỡng SoC là một phép so trên dữ liệu
+    # telemetry cloud, không trên bức ảnh tức thời của chiếc xe. `ba.md` POC
+    # §3 nói thẳng: "S5 – Cloud theo dõi giá trị SoC từ S10".
+    placement: CLOUD
+    scopeSignal: [identity, tripId]
+    # Một guard, không phải hai. `mode_allows_proactive` đã gỡ cùng Assistant
+    # Mode — `Preconditions §2` của POC chỉ liệt kê hai điều: kết nối mạng
+    # Online, và độ tươi dữ liệu.
+    guards:
+      - leafId: online
+        builtin: is_online
+    expression:
+      leafId: soc
+      # `motion.socPct`, không phải `vehicleHealth`: mức pin đổi theo chuyển
+      # động. Đọc nhầm chỗ là cách một luật im lặng mãi mãi mà không lỗi ở đâu.
+      op: threshold_cross
+      signal: motion.socPct
+      # `lte`, không phải `lt`. `ba.md` POC nói ngưỡng này ba lần và cả ba đều
+      # bao gồm chính con số ấy: "SoC ≤ 20%" (§3), "SoC ≤ 20%" (BR-01),
+      # "SoC ≤ 20%" (AC-01). Với `lt` thì đúng tại 20% — con số tài liệu nêu
+      # tên, và con số câu nói đọc lên — hệ thống im lặng.
+      comparator: lte

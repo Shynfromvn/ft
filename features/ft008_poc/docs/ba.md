@@ -139,7 +139,7 @@ S5 – Cloud theo dõi giá trị SoC từ S10, phát hiện giá trị mức pi
 
 | Mục | Giá trị |
 |---|---|
-| Mã tính năng | FT-007 POC |
+| Mã tính năng | FT-008 |
 | Trạng thái | Draft — chờ xác nhận các điểm chưa được requirement định lượng |
 | Người viết | ChiTU2 (requirement nguồn) · Duong (chuẩn hoá vào repo) |
 | Người phê duyệt | Chưa có |
